@@ -3,6 +3,7 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 import * as NodeUtil from "node:util";
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 
 export interface T3CodePublicConfig {
   readonly clerkPublishableKey: string | undefined;
@@ -32,7 +33,7 @@ export function loadRepoEnv({
   const localEnv = readEnvFile(NodePath.join(repoRoot, ".env.local"));
   const config = resolvePublicConfig(baseEnv, localEnv, rootEnv);
 
-  return {
+  const resolvedEnv: Record<string, string | undefined> = {
     ...rootEnv,
     ...localEnv,
     ...baseEnv,
@@ -99,9 +100,42 @@ export function loadRepoEnv({
         }
       : {}),
   };
+  // Remove inherited and .env aliases too; merely omitting normalized values leaves them active.
+  if (!privateBuildPolicy.cloudServices) {
+    for (const key of Object.keys(resolvedEnv)) {
+      if (
+        /^(?:T3CODE_|VITE_|EXPO_PUBLIC_)CLERK_/.test(key) ||
+        ["T3CODE_RELAY_URL", "VITE_T3CODE_RELAY_URL"].includes(key)
+      ) {
+        delete resolvedEnv[key];
+      }
+    }
+  }
+  if (!privateBuildPolicy.reporting) {
+    for (const key of Object.keys(resolvedEnv)) {
+      if (/^(?:T3CODE_(?:MOBILE_|RELAY_CLIENT_)|VITE_RELAY_|EXPO_PUBLIC_)OTLP_/.test(key)) {
+        delete resolvedEnv[key];
+      }
+    }
+  }
+  return resolvedEnv;
 }
 
 function resolvePublicConfig(...sources: readonly Environment[]): T3CodePublicConfig {
+  if (!privateBuildPolicy.cloudServices && !privateBuildPolicy.reporting) {
+    return {
+      clerkPublishableKey: undefined,
+      clerkJwtTemplate: undefined,
+      clerkCliOAuthClientId: undefined,
+      relayUrl: undefined,
+      mobileOtlpTracesUrl: undefined,
+      mobileOtlpTracesDataset: undefined,
+      mobileOtlpTracesToken: undefined,
+      relayClientOtlpTracesUrl: undefined,
+      relayClientOtlpTracesDataset: undefined,
+      relayClientOtlpTracesToken: undefined,
+    };
+  }
   return {
     clerkPublishableKey: firstNonEmpty(
       sources,

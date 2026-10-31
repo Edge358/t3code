@@ -37,7 +37,7 @@ export function DraftHeroProjectHeading({
       >
         <span
           ref={inlineRef}
-          className="flex w-max items-baseline gap-2 whitespace-nowrap font-normal text-3xl tracking-tight"
+          className="flex w-max items-baseline gap-2 whitespace-nowrap font-normal text-draft-heading tracking-tight"
         >
           <span>What should we build in</span>
           <span>
@@ -45,13 +45,13 @@ export function DraftHeroProjectHeading({
           </span>
         </span>
       </span>
-      <h1 className="flex w-full flex-col items-center justify-center gap-2 text-center font-normal text-2xl text-foreground tracking-tight sm:text-3xl lg:group-data-[inline=true]/draft-hero:flex-row">
+      <h1 className="flex w-full flex-col items-center justify-center gap-2 text-center font-normal text-draft-heading text-foreground tracking-tight lg:group-data-[inline=true]/draft-hero:flex-row">
         <span className="max-w-full lg:group-data-[inline=true]/draft-hero:shrink-0">
           What should we build
           <span className="lg:group-data-[inline=true]/draft-hero:hidden">?</span>
           <span className="hidden lg:group-data-[inline=true]/draft-hero:inline"> in</span>
         </span>
-        <span className="flex min-w-0 max-w-full items-baseline justify-center text-base tracking-normal lg:group-data-[inline=true]/draft-hero:text-3xl lg:group-data-[inline=true]/draft-hero:tracking-tight">
+        <span className="flex min-w-0 max-w-full items-baseline justify-center tracking-normal lg:group-data-[inline=true]/draft-hero:tracking-tight">
           <span className="min-w-0">{children}</span>
           <span className="hidden shrink-0 lg:group-data-[inline=true]/draft-hero:inline">?</span>
         </span>

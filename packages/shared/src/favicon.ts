@@ -1,4 +1,5 @@
 import { isPublicFaviconHost } from "./hostClassification.ts";
+import { privateBuildPolicy } from "./privateBuildPolicy.ts";
 
 function faviconUrlForPage(rawUrl: string | null | undefined, _size = 32): string | null {
   if (!rawUrl || rawUrl.length > 4096) return null;
@@ -56,6 +57,7 @@ export function toolActivityFaviconUrl(
   appearance: "light" | "dark",
   size = 32,
 ): string | null {
+  if (!privateBuildPolicy.remoteIcons) return null;
   if (appearance === "dark") {
     return (
       explicitFaviconUrl(icon.faviconUrlDark) ??
@@ -72,6 +74,7 @@ export function toolActivityFaviconUrl(
 }
 
 export function faviconUrlForOrigin(rawUrl: string | null | undefined, size = 32): string | null {
+  if (!privateBuildPolicy.remoteIcons) return null;
   if (!rawUrl) return null;
   try {
     const url = new URL(rawUrl);

@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./privateBuildPolicy": {
+      "types": "./src/privateBuildPolicy.ts",
+      "import": "./src/privateBuildPolicy.ts"
+    },
     "./changedFileKind": {
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"

@@ -43,6 +43,32 @@ function press(key: string, shiftKey = false) {
 
 const label = () => document.activeElement?.textContent;
 
+it("uses the independent menu size for labels and submenus", () => {
+  using _fixture = setup();
+  const previousSize = document.documentElement.style.fontSize;
+  const previousMenuSize = document.documentElement.style.getPropertyValue(
+    "--font-size-context-menu",
+  );
+  try {
+    document.documentElement.style.fontSize = "24px";
+    document.documentElement.style.setProperty("--font-size-context-menu", "18px");
+    void showContextMenuFallback(items);
+    expect(getComputedStyle(document.activeElement!).fontSize).toBe("18px");
+    document.documentElement.style.fontSize = "16px";
+    expect(getComputedStyle(document.activeElement!).fontSize).toBe("18px");
+    document.documentElement.style.setProperty("--font-size-context-menu", "22px");
+    expect(getComputedStyle(document.activeElement!).fontSize).toBe("22px");
+    press("End");
+    press("ArrowRight");
+    expect(getComputedStyle(document.activeElement!).fontSize).toBe("22px");
+  } finally {
+    document.documentElement.style.fontSize = previousSize;
+    if (previousMenuSize)
+      document.documentElement.style.setProperty("--font-size-context-menu", previousMenuSize);
+    else document.documentElement.style.removeProperty("--font-size-context-menu");
+  }
+});
+
 it("starts a keyboard-opened menu on its first action and wraps through enabled actions", () => {
   using _fixture = setup();
   void showContextMenuFallback(items);

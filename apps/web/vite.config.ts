@@ -99,6 +99,7 @@ const browserTestApiPort = 61_000 + ((Hash.string(import.meta.dirname) >>> 0) % 
 
 const browserTestProject = {
   extends: true,
+  server: { host: "127.0.0.1" },
   // Pre-bundle lazy browser and worker dependencies to avoid mid-run reloads.
   optimizeDeps: {
     include: [
@@ -129,7 +130,7 @@ const browserTestProject = {
     hookTimeout: 15_000,
     testTimeout: 15_000,
     setupFiles: ["./test/browserSetup.ts"],
-    api: { port: browserTestApiPort, strictPort: false },
+    api: { host: "127.0.0.1", port: browserTestApiPort, strictPort: false },
     browser: {
       enabled: true,
       headless: true,

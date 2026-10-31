@@ -143,7 +143,7 @@ describe("DesktopClerk", () => {
       userData: "/tmp/app-data/t3code-dev",
     },
   ])(
-    "creates the bridge before startup can yield to the event loop ($name)",
+    "preserves startup handling without initializing the account bridge ($name)",
     ({ isDevelopment, platform, userData }) => {
       const events: string[] = [];
       storageMock.mockReturnValue(storageAdapter);
@@ -165,12 +165,9 @@ describe("DesktopClerk", () => {
         "requestSingleInstanceLock",
         "on:second-instance",
         "on:open-url",
-        "createClerkBridge",
       ]);
-      assert.deepEqual(storageMock.mock.calls, [
-        [{ path: NodePath.join(NodePath.resolve(clerkStateDir), "clerk") }],
-      ]);
-      assert.notStrictEqual(createClerkBridgeMock.mock.calls[0]?.[0]?.storage, storageAdapter);
+      assert.equal(storageMock.mock.calls.length, 0);
+      assert.equal(createClerkBridgeMock.mock.calls.length, 0);
     },
   );
 

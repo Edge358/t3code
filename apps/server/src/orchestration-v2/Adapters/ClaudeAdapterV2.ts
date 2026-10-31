@@ -155,6 +155,7 @@ import { signalProcessGroup } from "@t3tools/provider-core/server/processGroup";
 import {
   claudeSignedOutMessage,
   makeClaudeEnvironment,
+  withClaudePrivacyEnvironment,
   resolveClaudeHomePath,
 } from "../../provider/Drivers/ClaudeHome.ts";
 import {
@@ -1024,7 +1025,10 @@ export const layerQueryRunner: Layer.Layer<
           let processExited = false;
           let processExit: Promise<void> | undefined;
           const spawnClaudeCodeProcess = (spawnOptions: ClaudeSpawnOptions) => {
-            const child = spawnProcess(spawnOptions);
+            const child = spawnProcess({
+              ...spawnOptions,
+              env: withClaudePrivacyEnvironment(spawnOptions.env),
+            });
             spawnedProcess = child;
             // A spawn that fails emits only "error".
             const releaseAgent = portDiscovery.trackAgent();

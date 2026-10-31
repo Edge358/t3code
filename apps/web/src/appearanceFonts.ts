@@ -1,11 +1,14 @@
 import {
   DEFAULT_CODE_FONT_SIZE,
+  DEFAULT_CONTEXT_MENU_FONT_SIZE,
   DEFAULT_INTERFACE_FONT_SIZE,
   DEFAULT_PROMPT_FONT_SIZE,
   MAX_CODE_FONT_SIZE,
+  MAX_CONTEXT_MENU_FONT_SIZE,
   MAX_INTERFACE_FONT_SIZE,
   MAX_PROMPT_FONT_SIZE,
   MIN_CODE_FONT_SIZE,
+  MIN_CONTEXT_MENU_FONT_SIZE,
   MIN_INTERFACE_FONT_SIZE,
   MIN_PROMPT_FONT_SIZE,
 } from "@t3tools/contracts";
@@ -65,6 +68,7 @@ export interface AppearanceFontPreferences {
   readonly sizeInterface: number;
   readonly sizePrompt: number;
   readonly sizeCode: number;
+  readonly sizeContextMenu: number;
   readonly smoothing: boolean;
   readonly separate: boolean;
 }
@@ -89,13 +93,17 @@ export function applyAppearanceFontVariables(
   }
 
   root.style.fontSize = `${clampInterfaceFontSize(preferences.sizeInterface)}px`;
+  const code = clampCodeFontSize(preferences.sizeCode);
   root.style.setProperty(
     "--font-size-prompt",
-    preferences.separate ? `${clampPromptFontSize(preferences.sizePrompt)}px` : "var(--text-sm)",
+    `${preferences.separate ? clampPromptFontSize(preferences.sizePrompt) : code}px`,
   );
-  const code = clampCodeFontSize(preferences.sizeCode);
   root.style.setProperty("--font-size-code", `${code}px`);
   root.style.setProperty("--diffs-font-size", `${code}px`);
+  root.style.setProperty(
+    "--font-size-context-menu",
+    `${clampFontSize(preferences.sizeContextMenu, MIN_CONTEXT_MENU_FONT_SIZE, MAX_CONTEXT_MENU_FONT_SIZE, DEFAULT_CONTEXT_MENU_FONT_SIZE)}px`,
+  );
 
   if (preferences.smoothing) {
     root.style.setProperty("-webkit-font-smoothing", "antialiased");

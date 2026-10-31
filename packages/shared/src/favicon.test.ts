@@ -3,10 +3,10 @@ import { describe, expect, it } from "@effect/vitest";
 import { faviconUrlForOrigin, toolActivityFaviconUrl } from "./favicon.ts";
 
 describe("faviconUrlForOrigin", () => {
-  it("sends only the public hostname and requested size, never the port", () => {
-    expect(faviconUrlForOrigin("https://github.com:8443/pingdotgg/t3code?private=query", 64)).toBe(
-      "https://www.google.com/s2/favicons?domain=github.com&sz=64",
-    );
+  it("does not send public hostnames to any favicon service", () => {
+    expect(
+      faviconUrlForOrigin("https://github.com:8443/pingdotgg/t3code?private=query", 64),
+    ).toBeNull();
   });
 
   // regression: #5838 no favicon request for missing or non-http origins
@@ -19,27 +19,25 @@ describe("faviconUrlForOrigin", () => {
 });
 
 describe("toolActivityFaviconUrl", () => {
-  it("uses the page origin instead of a third-party favicon service", () => {
-    expect(toolActivityFaviconUrl({ pageUrl: "https://example.com/docs/page?q=1" }, "light")).toBe(
-      "https://example.com/favicon.ico",
-    );
-    expect(toolActivityFaviconUrl({ pageUrl: "http://localhost:5173/app" }, "light")).toBe(
-      "http://localhost:5173/favicon.ico",
-    );
+  it("does not request icons from the page origin either", () => {
+    expect(
+      toolActivityFaviconUrl({ pageUrl: "https://example.com/docs/page?q=1" }, "light"),
+    ).toBeNull();
+    expect(toolActivityFaviconUrl({ pageUrl: "http://localhost:5173/app" }, "light")).toBeNull();
   });
 
-  it("accepts provider-supplied image URLs but rejects extension URLs", () => {
+  it("ignores provider-supplied remote and extension URLs", () => {
     expect(
       toolActivityFaviconUrl(
         { pageUrl: "https://example.com/docs", faviconUrl: "https://example.com/icon.png" },
         "light",
       ),
-    ).toBe("https://example.com/icon.png");
+    ).toBeNull();
     expect(
       toolActivityFaviconUrl(
         { pageUrl: "https://example.com/docs", faviconUrl: "chrome-extension://example/_favicon/" },
         "light",
       ),
-    ).toBe("https://example.com/favicon.ico");
+    ).toBeNull();
   });
 });

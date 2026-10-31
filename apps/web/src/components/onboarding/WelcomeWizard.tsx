@@ -1,4 +1,5 @@
 import { useAuth } from "@clerk/react";
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import { useAtomValue } from "@effect/atom-react";
 import type {
   AgentSessionProjectCandidate,
@@ -38,7 +39,6 @@ import { useEffect, useRef, useState } from "react";
 import { TYPOGRAPHY_ADVANCED_STORAGE_KEY } from "../../appearanceFonts";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { hasCloudPublicConfig } from "../../cloud/publicConfig";
-import { PRIVACY_POLICY_URL } from "../../legalLinks";
 import { useT3ConnectAuthPrompt } from "../clerk/useT3ConnectAuthPrompt";
 import { completeOnboarding } from "../../onboarding/firstRun";
 import {
@@ -434,17 +434,8 @@ function ConnectionStep({
       ) : null}
       <div className="mt-6 flex flex-col-reverse gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
         <p className="min-w-0 text-xs leading-relaxed text-muted-foreground">
-          T3 Code collects anonymous usage data to help us improve it. To read more about how your
-          data is used and how to opt out, see our{" "}
-          <a
-            className="underline underline-offset-2 hover:text-foreground"
-            href={PRIVACY_POLICY_URL}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            privacy policy
-          </a>
-          .
+          T3 usage analytics and diagnostic exports are disabled in this build. Agent services still
+          connect to their providers when you use them.
         </p>
         <Button
           className="shrink-0 self-end"
@@ -724,7 +715,9 @@ function ConnectedAgentsStep({
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- asks the environment to refresh its provider list when the environment changes
   useEffect(() => {
-    void refreshProviders({ environmentId, input: {} });
+    if (privateBuildPolicy.automaticProviderChecks) {
+      void refreshProviders({ environmentId, input: {} });
+    }
   }, [environmentId, refreshProviders]);
 
   const byDriver = selectOnboardingProvidersByDriver(providers);
@@ -752,6 +745,19 @@ function ConnectedAgentsStep({
   return (
     <section>
       <h2 className="mb-2 text-sm font-medium">{machineLabel}</h2>
+      {!privateBuildPolicy.automaticProviderChecks ? (
+        <div className="mb-3 flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => void refreshProviders({ environmentId, input: {} })}
+          >
+            Check agents
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Check installed agents and sign-in status. This may contact your agent providers.
+          </p>
+        </div>
+      ) : null}
       {!canOperateTerminal ? (
         <p className="mb-2 text-sm text-muted-foreground">
           This connection cannot control terminals.

@@ -134,7 +134,7 @@ const readJson = Effect.fn("claudeResetCredits.readJson")(function* <S extends S
   );
 });
 
-const readAccessToken = Effect.fn("claudeResetCredits.readAccessToken")(function* (
+export const readAccessToken = Effect.fn("claudeResetCredits.readAccessToken")(function* (
   configDir: string,
 ) {
   if ((yield* HostProcess.Platform) === "darwin") return undefined;
@@ -143,7 +143,7 @@ const readAccessToken = Effect.fn("claudeResetCredits.readAccessToken")(function
   return credentials.claudeAiOauth?.accessToken?.trim() || undefined;
 });
 
-const withClaudeHeaders = (token: string, version: string) =>
+export const withClaudeHeaders = (token: string, version: string) =>
   HttpClientRequest.setHeaders({
     authorization: `Bearer ${token}`,
     "anthropic-beta": "oauth-2025-04-20",

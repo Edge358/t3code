@@ -1,3 +1,4 @@
+import { privateBuildPolicy } from "./privateBuildPolicy.ts";
 import * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Data from "effect/Data";
@@ -282,7 +283,7 @@ export const load: Effect.Effect<OtelEnvironment> = Config.all({
   }),
 }).pipe(
   Effect.map(({ t3, spec, resource, generic, exporters, ...own }) => {
-    const disabled = t3.value ?? spec.value ?? false;
+    const disabled = !privateBuildPolicy.reporting || (t3.value ?? spec.value ?? false);
     const signals = disabled
       ? undefined
       : {
@@ -301,9 +302,11 @@ export const load: Effect.Effect<OtelEnvironment> = Config.all({
     ].filter((warning) => warning !== undefined);
     if (disabled) {
       warnings.push(
-        t3.value
-          ? "T3CODE_OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it"
-          : "OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it; set T3CODE_OTEL_SDK_DISABLED=false to export anyway",
+        !privateBuildPolicy.reporting
+          ? "Diagnostic exports are disabled in this private build."
+          : t3.value
+            ? "T3CODE_OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it"
+            : "OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it; set T3CODE_OTEL_SDK_DISABLED=false to export anyway",
       );
     }
     return {
@@ -324,7 +327,10 @@ export const isRelayTracingEnabled = (env: Readonly<Record<string, string | unde
     telemetry: flag("T3CODE_TELEMETRY_ENABLED", T3CODE_TRUE, T3CODE_FALSE, String),
   }).pipe(
     Effect.map(
-      ({ telemetry, t3, spec }) => telemetry.value !== false && !(t3.value ?? spec.value ?? false),
+      ({ telemetry, t3, spec }) =>
+        privateBuildPolicy.reporting &&
+        telemetry.value !== false &&
+        !(t3.value ?? spec.value ?? false),
     ),
     Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnvRecord(env))),
     Effect.orDie,
@@ -347,7 +353,7 @@ export const resolveSignalEndpoint = (
   t3: { readonly url: string | undefined; readonly export: SignalExport },
   fallback: { readonly bootstrapUrl: string | undefined; readonly settingsUrl: string | undefined },
 ): SignalEndpoint | undefined => {
-  if (otel.disabled) {
+  if (!privateBuildPolicy.reporting || otel.disabled) {
     return undefined;
   }
   const t3Url = blankAsUnset(t3.url);

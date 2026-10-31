@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { toastManager } from "./ui/toast";
 
+const testPolicy = vi.hoisted(() => ({ githubStarPrompt: true }));
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({ privateBuildPolicy: testPolicy }));
+
 const { add, starred } = vi.hoisted(() => ({
   add: vi.fn<typeof toastManager.add>(),
   starred: { value: false, duringCheck: () => {} },
@@ -44,6 +47,23 @@ async function startSession() {
 }
 
 describe("recordPromptSent", () => {
+  it("private builds neither count prompts nor check GitHub or show the popup", async () => {
+    const store = setup({ sent: 5 });
+    const check = vi.fn();
+    starred.duringCheck = check;
+    testPolicy.githubStarPrompt = false;
+    try {
+      const session = await startSession();
+      for (let sent = 0; sent < 10; sent++) await session.send();
+      expect(store.get("t3code:github-star-prompt:sent")).toBe("5");
+      expect(check).not.toHaveBeenCalled();
+      expect(add).not.toHaveBeenCalled();
+    } finally {
+      testPolicy.githubStarPrompt = true;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("asks after five prompts, once per session, and never again once closed", async () => {
     setup();
     let session = await startSession();

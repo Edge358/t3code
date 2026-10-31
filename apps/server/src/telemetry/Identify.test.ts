@@ -1,5 +1,8 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
+// Retained upstream identity parsing coverage; private-build tests omit all I/O.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({ privateBuildPolicy: { reporting: true } }));
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Hex from "effect/encoding/Hex";

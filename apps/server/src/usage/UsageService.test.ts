@@ -9,6 +9,10 @@ import * as NodeZlib from "node:zlib";
 
 import { assert, describe, it } from "@effect/vitest";
 import { vi } from "vite-plus/test";
+const testBuildPolicy = vi.hoisted(() => ({ automaticPricingDownloads: true }));
+// Keep upstream pricing/cache regressions; the dedicated case below exercises
+// the private-build policy, where summary reads must never fetch rates.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({ privateBuildPolicy: testBuildPolicy }));
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { mergeUsage } from "@t3tools/shared/usageMerge";
@@ -468,6 +472,41 @@ describe("Codex usage history", () => {
 });
 
 describe("UsageService", () => {
+  it.live("does not download prices until an explicit refresh in the private build", () =>
+    Effect.gen(function* () {
+      testBuildPolicy.automaticPricingDownloads = false;
+      const { home, settings } = yield* setup;
+      let requests = 0;
+      const service = yield* UsageService.make.pipe(
+        Effect.provide(
+          layerService({
+            prefix: "private-pricing-test",
+            home,
+            settings,
+            onRatesFetch: () => {
+              requests += 1;
+            },
+            ratesDocument: {
+              "claude-fable-5": { input_cost_per_token: 1e-5, output_cost_per_token: 5e-5 },
+            },
+          }),
+        ),
+      );
+      assert.strictEqual((yield* service.readSummary(WINDOW)).pricing.status, "unavailable");
+      assert.strictEqual(requests, 0);
+      assert.strictEqual((yield* service.refreshRates).status, "fresh");
+      assert.strictEqual(requests, 1);
+      yield* service.readSummary(WINDOW);
+      assert.strictEqual(requests, 1);
+    }).pipe(
+      Effect.scoped,
+      Effect.ensuring(
+        Effect.sync(() => {
+          testBuildPolicy.automaticPricingDownloads = true;
+        }),
+      ),
+    ),
+  );
   it.live("counts compressed Codex rollouts across refresh, rewrites, and cache restarts", () =>
     Effect.gen(function* () {
       const { home, settings } = yield* setup;

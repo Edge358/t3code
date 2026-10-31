@@ -373,7 +373,15 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "code-font",
     title: "Code font",
     to: "/settings/appearance",
-    searchTerms: ["typography family size monospace code blocks diffs file previews"],
+    searchTerms: [
+      "typography family size monospace chat replies responses typing code blocks diffs file previews",
+    ],
+  },
+  {
+    id: "context-menu-size",
+    title: "Right-click menu size",
+    to: "/settings/appearance",
+    searchTerms: ["typography font size context popup menu"],
   },
   {
     id: "terminal-font",
@@ -571,6 +579,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Show skills in slash menu",
     to: "/settings/chat",
     searchTerms: ["command menu dollar $ slash /"],
+  },
+  {
+    id: "reply-speech",
+    title: "Read replies aloud",
+    to: "/settings/chat",
+    targetId: "reply-speech",
+    searchTerms: ["speech voice audio tts speaker service address port"],
+    desktopOnly: true,
   },
   {
     id: "composer-rich-text",

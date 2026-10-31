@@ -4,6 +4,7 @@ import {
   ServerSettingsError,
 } from "@t3tools/contracts";
 import { resolveServerBackgroundActivitySettings } from "@t3tools/shared/backgroundActivitySettings";
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Equal from "effect/Equal";
@@ -251,6 +252,7 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
   });
 
   const shouldRefreshOnInterval = Effect.gen(function* () {
+    if (!privateBuildPolicy.automaticProviderChecks) return false;
     const state = yield* Ref.get(snapshotStateRef);
     // A disabled instance has nothing to probe; a periodic check would only
     // republish a snapshot that differs in checkedAt.
@@ -328,6 +330,7 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
     ),
   ).pipe(Effect.forkScoped);
 
+  // Initial discovery fills model pickers even when periodic checks are disabled.
   yield* applySnapshot(initialSettings, { forceRefresh: true }).pipe(
     Effect.ignoreCause({ log: true }),
     Effect.forkScoped,

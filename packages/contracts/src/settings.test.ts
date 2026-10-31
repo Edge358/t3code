@@ -26,6 +26,18 @@ import {
 const decodeClientSettings = Schema.decodeUnknownSync(ClientSettingsSchema);
 const decodeClientSettingsPatch = Schema.decodeUnknownSync(ClientSettingsPatch);
 const encodeClientSettings = Schema.encodeSync(ClientSettingsSchema);
+
+it("defaults old profiles to 18px menus and persists valid independent menu sizes", () => {
+  expect(decodeClientSettings({}).fontSizeContextMenu).toBe(18);
+  const settings = decodeClientSettings({ fontSizeCode: 22, fontSizeContextMenu: 20 });
+  expect(decodeClientSettings(encodeClientSettings(settings)).fontSizeContextMenu).toBe(20);
+  expect(decodeClientSettingsPatch({ fontSizeContextMenu: 24 })).toEqual({
+    fontSizeContextMenu: 24,
+  });
+  for (const size of [11, 25, 18.5]) {
+    expect(() => decodeClientSettingsPatch({ fontSizeContextMenu: size })).toThrow();
+  }
+});
 const decodeServerSettings = Schema.decodeUnknownSync(ServerSettings);
 const encodeProviderInstanceEnvironment = Schema.encodeSync(ProviderInstanceEnvironment);
 const decodeProviderInstanceEnvironment = Schema.decodeSync(ProviderInstanceEnvironment);
@@ -41,7 +53,7 @@ const encodeServerSettingsPatch = Schema.encodeSync(ServerSettingsPatch);
 const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
 
 describe("storage cleanup settings", () => {
-  it("keeps cleanup disabled for existing installations", () => {
+  it("defaults browser and log cleanup to 30 days while leaving worktree cleanup disabled", () => {
     expect(decodeServerSettings({}).worktreeCleanup).toBeNull();
     expect(decodeServerSettings({}).storageCleanup).toEqual({
       worktreeAfterDays: null,
@@ -50,8 +62,8 @@ describe("storage cleanup settings", () => {
       worktreeOnDelete: false,
       worktreeUnchanged: false,
       worktreeKeepWhen: "uncommitted-changes",
-      browserArtifactsAfterDays: null,
-      logsAfterDays: null,
+      browserArtifactsAfterDays: 30,
+      logsAfterDays: 30,
     });
   });
 

@@ -1686,8 +1686,15 @@ function OpenCommandPaletteDialog(props: {
               {
                 value: NEW_THREAD_IN_GROUP,
                 label: "Projects",
-                // Every project archived and no "No project" home leaves only adding one.
-                items: projectThreadItems.length > 0 ? projectThreadItems : [addProjectAction],
+                items: [
+                  { ...addProjectAction, title: "Add project / choose folder…" },
+                  ...projectThreadItems.filter(
+                    (item) => item.value !== NEW_THREAD_NO_PROJECT_VALUE,
+                  ),
+                  ...projectThreadItems.filter(
+                    (item) => item.value === NEW_THREAD_NO_PROJECT_VALUE,
+                  ),
+                ],
               },
             ]
           : currentView?.groups[0]?.value === "themes"

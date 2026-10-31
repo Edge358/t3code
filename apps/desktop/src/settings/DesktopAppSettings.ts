@@ -1,3 +1,4 @@
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import {
   DesktopServerExposureModeSchema,
   DesktopUpdateChannelSchema,
@@ -220,8 +221,11 @@ function normalizeDesktopSettingsDocument(
     mainWindowBounds,
     mainWindowMaximized: mainWindowBounds !== null && parsed.mainWindowMaximized === true,
     serverExposureMode:
-      parsed.serverExposureMode === "network-accessible" ? "network-accessible" : "local-only",
-    tailscaleServeEnabled: parsed.tailscaleServeEnabled === true,
+      privateBuildPolicy.cloudServices && parsed.serverExposureMode === "network-accessible"
+        ? "network-accessible"
+        : "local-only",
+    tailscaleServeEnabled:
+      privateBuildPolicy.cloudServices && parsed.tailscaleServeEnabled === true,
     tailscaleServePort: normalizeTailscaleServePort(parsed.tailscaleServePort),
     updateChannel: updateChannelConfiguredByUser
       ? Option.getOrElse(parsedUpdateChannel, () => defaultSettings.updateChannel)

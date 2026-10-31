@@ -44,16 +44,13 @@ export function createLocalApi(): LocalApi {
         items: readonly ContextMenuItem<T>[],
         position?: { x: number; y: number },
       ): Promise<T | null> => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.showContextMenu(items, position) as Promise<T | null>;
-        }
+        // Let app action menus follow the independent right-click menu size setting.
+        // Native desktop menus cannot follow the app's typography settings.
         return showContextMenuFallback(items, position);
       },
-      // Unlike native menus, the DOM fallback needs dismissal when underlying state disappears.
+      // Dismiss the menu when its underlying state disappears, including on desktop.
       close: async () => {
-        if (!window.desktopBridge) {
-          dismissContextMenu();
-        }
+        dismissContextMenu();
       },
     },
     persistence: {

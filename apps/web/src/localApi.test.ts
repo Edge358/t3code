@@ -65,6 +65,25 @@ afterEach(() => {
 });
 
 describe("LocalApi", () => {
+  it("uses the scalable menu and dismisses it even when the desktop bridge is available", async () => {
+    const nativeMenu = vi.fn();
+    Object.defineProperty(testWindow(), "desktopBridge", {
+      configurable: true,
+      value: { showContextMenu: nativeMenu },
+    });
+    showContextMenuFallbackMock.mockResolvedValue("rename");
+    const { createLocalApi } = await import("./localApi");
+    const api = createLocalApi();
+    const items = [{ id: "rename", label: "Rename thread" }];
+    const position = { x: 40, y: 80 };
+
+    await expect(api.contextMenu.show(items, position)).resolves.toBe("rename");
+    expect(showContextMenuFallbackMock).toHaveBeenCalledWith(items, position);
+    expect(nativeMenu).not.toHaveBeenCalled();
+    await api.contextMenu.close();
+    expect(dismissContextMenuMock).toHaveBeenCalledOnce();
+  });
+
   it("fails closed in a browser when no themed host is available", async () => {
     requestConfirmDialogMock.mockReturnValue(undefined);
     const { createLocalApi } = await import("./localApi");

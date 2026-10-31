@@ -532,6 +532,8 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       env: {
         ...backendChildEnvPatch(),
         ELECTRON_RUN_AS_NODE: "1",
+        // Speech-aware local hooks can defer to this desktop client, without changing terminal sessions.
+        T3CODE_APP_SPEECH_MANAGED: "1",
         T3CODE_CLI_PATH: Option.getOrUndefined(input.cliPath),
       },
       extendEnv: true,

@@ -25,6 +25,8 @@ import { ProviderDriverError } from "../Errors.ts";
 import { claudeUsageReader } from "./claudeUsage.ts";
 import { makeClaudeScopedLimitNames } from "../claudeUsageLimits.ts";
 import * as ClaudeResetCredits from "../claudeResetCredits.ts";
+import { readClaudePlanUsage } from "../claudePlanUsage.ts";
+import { resolveClaudeConfigDirPath } from "./ClaudeSkills.ts";
 import * as ResetCreditCoordinator from "../resetCreditCoordinator.ts";
 import {
   checkClaudeProviderStatus,
@@ -156,6 +158,13 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
     );
     const continuationGroupKey = yield* makeClaudeContinuationGroupKey(effectiveConfig, processEnv);
     const configDir = yield* resolveClaudeHomePath(effectiveConfig, processEnv);
+    // The capability probe runs in stateDir; inherited relative paths must use
+    // that same cwd when selecting credentials for its usage fallback.
+    const planUsageConfigDir = yield* resolveClaudeConfigDirPath(
+      effectiveConfig,
+      processEnv,
+      stateDir,
+    );
     const accountConfigPath = yield* ClaudeResetCredits.claudeAccountConfigPath(
       effectiveConfig.homePath.trim() || processEnv.CLAUDE_CONFIG_DIR?.trim()
         ? configDir
@@ -268,6 +277,12 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
               scopedLimitNames,
               (version) =>
                 ClaudeResetCredits.readClaudeResetCredits(configDir, version).pipe(
+                  Effect.provideService(HttpClient.HttpClient, httpClient),
+                  Effect.provideService(FileSystem.FileSystem, fileSystem),
+                  Effect.provideService(Path.Path, path),
+                ),
+              (version) =>
+                readClaudePlanUsage(planUsageConfigDir, version).pipe(
                   Effect.provideService(HttpClient.HttpClient, httpClient),
                   Effect.provideService(FileSystem.FileSystem, fileSystem),
                   Effect.provideService(Path.Path, path),

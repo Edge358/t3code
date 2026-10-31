@@ -1,3 +1,4 @@
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import {
   createAdvertisedEndpoint,
   type CreateAdvertisedEndpointInput,
@@ -114,9 +115,9 @@ const resolveDesktopServerExposure = (input: {
   const localHttpUrl = `http://${DESKTOP_LOOPBACK_HOST}:${input.port}`;
   const localWsUrl = `ws://${DESKTOP_LOOPBACK_HOST}:${input.port}`;
 
-  if (input.mode === "local-only") {
+  if (!privateBuildPolicy.cloudServices || input.mode === "local-only") {
     return {
-      mode: input.mode,
+      mode: "local-only",
       bindHost: DESKTOP_LOOPBACK_HOST,
       localHttpUrl,
       localWsUrl,
@@ -361,7 +362,7 @@ function runtimeStateFromResolvedExposure(input: {
     httpBaseUrl: new URL(input.exposure.localHttpUrl),
     endpointUrl: Option.fromNullishOr(input.exposure.endpointUrl),
     advertisedHost: Option.fromNullishOr(input.exposure.advertisedHost),
-    tailscaleServeEnabled: input.settings.tailscaleServeEnabled,
+    tailscaleServeEnabled: privateBuildPolicy.cloudServices && input.settings.tailscaleServeEnabled,
     tailscaleServePort: input.settings.tailscaleServePort,
   };
 }
@@ -515,6 +516,7 @@ export const make = Effect.gen(function* () {
   const setMode = Effect.fn("desktop.serverExposure.setMode")(function* (
     mode: DesktopServerExposureMode,
   ) {
+    if (!privateBuildPolicy.cloudServices) mode = "local-only";
     yield* Effect.annotateCurrentSpan({ mode });
     const previous = yield* Ref.get(stateRef);
     const currentSettings = yield* desktopSettings.get;
@@ -560,7 +562,7 @@ export const make = Effect.gen(function* () {
       });
       const result = yield* desktopSettings
         .setTailscaleServe({
-          enabled: input.enabled,
+          enabled: privateBuildPolicy.cloudServices && input.enabled,
           port: Option.fromNullishOr(input.port),
         })
         .pipe(
@@ -576,7 +578,8 @@ export const make = Effect.gen(function* () {
 
       const nextState = yield* Ref.updateAndGet(stateRef, (current) => ({
         ...current,
-        tailscaleServeEnabled: result.settings.tailscaleServeEnabled,
+        tailscaleServeEnabled:
+          privateBuildPolicy.cloudServices && result.settings.tailscaleServeEnabled,
         tailscaleServePort: result.settings.tailscaleServePort,
       }));
 

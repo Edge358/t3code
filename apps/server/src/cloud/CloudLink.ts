@@ -1,3 +1,4 @@
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- Effect's Crypto has no createPublicKey.
 import * as NodeCrypto from "node:crypto";
 import {
@@ -102,7 +103,7 @@ import { relayUrlConfig } from "./publicConfig.ts";
 import {
   filterRelayResponse,
   relayRequestError,
-  type RelayRequestError,
+  RelayRequestError,
   shouldRetryRelayRequest,
 } from "./relayResponse.ts";
 import {
@@ -707,6 +708,7 @@ const make = Effect.gen(function* () {
   const startManagedTunnelIfOriginConfirmed = Effect.fn(
     "environment.cloud.startManagedCloudTunnelIfOriginConfirmed",
   )(function* (localOrigin: string, options?: { readonly requireConfirmedOrigin?: boolean }) {
+    if (!privateBuildPolicy.cloudServices) return false;
     const requireConfirmedOrigin = options?.requireConfirmedOrigin ?? true;
     const parsedOrigin = yield* Effect.try({
       try: () => parseManagedEndpointLocalOrigin(localOrigin),
@@ -823,17 +825,24 @@ const make = Effect.gen(function* () {
     readonly payload: unknown;
     readonly schema: Schema.Decoder<A>;
     readonly timeout?: Duration.Input;
-  }) =>
-    HttpClientRequest.post(input.url).pipe(
-      HttpClientRequest.bearerToken(input.token),
-      HttpClientRequest.bodyJson(input.payload),
-      Effect.flatMap(httpClient.execute),
-      Effect.flatMap(filterRelayResponse),
-      Effect.flatMap(HttpClientResponse.schemaBodyJson(input.schema)),
-      Effect.timeout(input.timeout ?? "10 seconds"),
-      Effect.mapError(relayRequestError),
-      withRelayClientTracing,
-    );
+  }): Effect.Effect<A, RelayRequestError> =>
+    !privateBuildPolicy.cloudServices
+      ? Effect.fail(
+          new RelayRequestError({
+            rejection: "forbidden",
+            description: "T3 account and relay services are disabled in this private build.",
+          }),
+        )
+      : HttpClientRequest.post(input.url).pipe(
+          HttpClientRequest.bearerToken(input.token),
+          HttpClientRequest.bodyJson(input.payload),
+          Effect.flatMap(httpClient.execute),
+          Effect.flatMap(filterRelayResponse),
+          Effect.flatMap(HttpClientResponse.schemaBodyJson(input.schema)),
+          Effect.timeout(input.timeout ?? "10 seconds"),
+          Effect.mapError(relayRequestError),
+          withRelayClientTracing,
+        );
 
   const reconcileDesiredCloudLinkWith = Effect.fn("environment.cloud.reconcileDesiredLinkWith")(
     function* (localOrigin: string) {
@@ -910,6 +919,7 @@ const make = Effect.gen(function* () {
   const reconcileDesiredLinkIfStillDesired = Effect.fn(
     "environment.cloud.reconcileDesiredLinkIfStillDesired",
   )(function* (localOrigin: string) {
+    if (!privateBuildPolicy.cloudServices) return null;
     return yield* endpointRuntime.withLinkStateLock(
       Effect.gen(function* () {
         if (!(yield* readCliDesiredCloudLink.pipe(withSecrets))) {
@@ -980,6 +990,7 @@ const make = Effect.gen(function* () {
   const registerManagedTunnelRecovery = Effect.fn(
     "environment.cloud.registerManagedCloudTunnelRecovery",
   )(function* (localOrigin: string, options?: { readonly retryRuntimeFailures?: boolean }) {
+    if (!privateBuildPolicy.cloudServices) return { status: "not_linked" as const };
     const [runtimeConfig, relayUrl, cloudUserId, environmentCredential] = yield* Effect.all([
       secrets.get(CLOUD_ENDPOINT_RUNTIME_CONFIG),
       secrets.get(RELAY_URL_SECRET),
@@ -1207,6 +1218,7 @@ const make = Effect.gen(function* () {
   const releaseManagedTunnelOnShutdown = Effect.fn(
     "environment.cloud.releaseManagedTunnelOnShutdown",
   )(function* () {
+    if (!privateBuildPolicy.cloudServices) return false;
     const runtimeConfig = yield* secrets.get(CLOUD_ENDPOINT_RUNTIME_CONFIG);
     if (Option.isNone(runtimeConfig)) {
       return false;

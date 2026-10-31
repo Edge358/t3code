@@ -1,4 +1,10 @@
 import { EnvironmentId } from "@t3tools/contracts";
+import { vi } from "vite-plus/test";
+
+// Exercise upstream lifecycle behavior; PrivateBuildCloud.test.ts checks the shipping policy.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({
+  privateBuildPolicy: { cloudServices: true },
+}));
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";

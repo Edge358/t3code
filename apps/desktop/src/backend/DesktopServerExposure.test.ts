@@ -2,6 +2,9 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
+const testBuildPolicy = vi.hoisted(() => ({ cloudServices: true }));
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({ privateBuildPolicy: testBuildPolicy }));
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -142,6 +145,30 @@ const withHarness = <A, E, R>(
   }).pipe(Effect.provide(NodeServices.layer), Effect.scoped);
 
 describe("DesktopServerExposure", () => {
+  it.effect("keeps the private build on loopback despite requests to enable sharing", () =>
+    Effect.gen(function* () {
+      testBuildPolicy.cloudServices = false;
+      yield* withHarness(
+        lanNetworkInterfaces,
+        Effect.gen(function* () {
+          const service = yield* DesktopServerExposure.DesktopServerExposure;
+          yield* service.configureFromSettings({ port: 4173 });
+          yield* service.setMode("network-accessible");
+          yield* service.setTailscaleServeEnabled({ enabled: true });
+          const state = yield* service.getState;
+          assert.equal(state.mode, "local-only");
+          assert.equal(state.tailscaleServeEnabled, false);
+          assert.equal((yield* service.backendConfig).bindHost, "127.0.0.1");
+        }),
+      );
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          testBuildPolicy.cloudServices = true;
+        }),
+      ),
+    ),
+  );
   it.effect("uses cached Tailscale identity to exclude another VPN's pairing address", () => {
     let statusReads = 0;
     return withHarness(

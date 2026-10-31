@@ -1,4 +1,9 @@
 import { describe, it, assert } from "@effect/vitest";
+import { vi } from "vite-plus/test";
+
+// Retain upstream lifecycle coverage and explicitly exercise the private policy below.
+const testPolicy = vi.hoisted(() => ({ automaticProviderChecks: true }));
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({ privateBuildPolicy: testPolicy }));
 import {
   DEFAULT_SERVER_SETTINGS,
   ProviderDriverKind,
@@ -140,6 +145,37 @@ const enrichedSnapshotSecond: ServerProvider = {
 };
 
 describe("makeManagedServerProvider", () => {
+  it.effect("private policy allows startup and manual checks but skips timed checks", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        testPolicy.automaticProviderChecks = false;
+        const calls = yield* Ref.make(0);
+        const provider = yield* makeManagedServerProvider<TestSettings>({
+          resolveMaintenance: () => Effect.succeed(maintenanceCapabilities),
+          getSettings: Effect.succeed({ enabled: true }),
+          streamSettings: Stream.empty,
+          haveSettingsChanged: (previous, next) => previous.enabled !== next.enabled,
+          initialSnapshot: () => Effect.succeed(initialSnapshot),
+          checkProvider: Ref.update(calls, (n) => n + 1).pipe(Effect.as(refreshedSnapshot)),
+          refreshInterval: "1 second",
+          refreshOnInterval: true,
+        });
+        yield* TestClock.adjust("2 minutes");
+        assert.strictEqual(yield* Ref.get(calls), 1);
+        assert.deepStrictEqual(yield* provider.getSnapshot, refreshedSnapshot);
+        assert.deepStrictEqual(yield* provider.refresh, refreshedSnapshot);
+        yield* TestClock.adjust("2 minutes");
+        assert.strictEqual(yield* Ref.get(calls), 2);
+      }),
+    ).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          testPolicy.automaticProviderChecks = true;
+        }),
+      ),
+      Effect.provide(layerAlwaysRunTest),
+    ),
+  );
   it.effect("invalidates cached usage and queues one refresh behind an in-flight refresh", () =>
     Effect.scoped(
       Effect.gen(function* () {

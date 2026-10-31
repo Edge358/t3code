@@ -1,3 +1,4 @@
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import {
   type ProviderInstanceConfig,
   ProviderInstanceId,
@@ -255,6 +256,8 @@ export const make = Effect.gen(function* () {
       }
     }
 
+    // Read bundled/user-cached rates automatically; download only on explicit refresh.
+    if (!force && !privateBuildPolicy.automaticPricingDownloads) return;
     if (ratesLastFailedAtMs !== null && now - ratesLastFailedAtMs < RATES_REFRESH_FLOOR_MS) return;
 
     let fetched = yield* fetchRates(LITELLM_RATES_URL);

@@ -1,3 +1,4 @@
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Base64Url from "effect/encoding/Base64Url";
@@ -279,6 +280,7 @@ const readProviderLogins = Effect.fn("TelemetryIdentity.readProviderLogins")(fun
 export const getTelemetryIdentityForHome = Effect.fn("getTelemetryIdentityForHome")(function* (
   homeDirectory: string,
 ) {
+  if (!privateBuildPolicy.reporting) return { distinctId: null, installId: null };
   const { codexTokens, claudeJson } = yield* readProviderLogins(homeDirectory);
   const installId = yield* upsertAnonymousId.pipe(
     Effect.map(hashTelemetryId),
@@ -307,6 +309,7 @@ export const getTelemetryIdentity = Effect.flatMap(
 export const getServerOwnersForHome = Effect.fn("getServerOwnersForHome")(function* (
   homeDirectory: string,
 ) {
+  if (!privateBuildPolicy.reporting) return [] as ReadonlyArray<TelemetryOwner>;
   const secrets = yield* ServerSecretStore.ServerSecretStore;
   const connectUser = yield* secrets.get(CLOUD_LINKED_USER_ID).pipe(
     Effect.map(Option.map((bytes) => new TextDecoder().decode(bytes))),

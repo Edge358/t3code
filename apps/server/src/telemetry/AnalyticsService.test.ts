@@ -1,6 +1,11 @@
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
+
+// Upstream batching regression coverage; PrivateBuildReporting.test.ts verifies
+// that none of this sender is constructed under the actual private-build policy.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({ privateBuildPolicy: { reporting: true } }));
 import * as Clock from "effect/Clock";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";

@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import { ReplySpeechSettings } from "./ReplySpeechSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { PRIVACY_POLICY_URL } from "../../legalLinks";
 import { CheckIcon } from "lucide-react";
@@ -74,6 +75,7 @@ import { DraftInput } from "../ui/draft-input";
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
+import { setAutomaticRemoteMedia, useAutomaticRemoteMedia } from "../chat/RemoteMediaConsent";
 import { ScopedSwitch } from "./ScopedSwitch";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -396,6 +398,7 @@ function AboutVersionSection() {
 }
 
 export function useSettingsRestore(onRestored?: () => void) {
+  const automaticRemoteMedia = useAutomaticRemoteMedia();
   const {
     theme,
     setTheme,
@@ -415,6 +418,13 @@ export function useSettingsRestore(onRestored?: () => void) {
   const isBackgroundActivityDirty = hasChangedBackgroundActivitySettings(settings);
 
   const changedSettingLabels = [
+    ...(automaticRemoteMedia ? ["Automatically load external media"] : []),
+    ...(settings.readRepliesAloud !== DEFAULT_UNIFIED_SETTINGS.readRepliesAloud
+      ? ["Read replies aloud"]
+      : []),
+    ...(settings.speechServiceAddress !== DEFAULT_UNIFIED_SETTINGS.speechServiceAddress
+      ? ["Speech service address"]
+      : []),
     ...(theme !== "system" ? ["Theme"] : []),
     ...(!followSystem ? ["Follow system"] : []),
     ...(themeHalves !== null ? ["Theme mix"] : []),
@@ -597,7 +607,10 @@ export function useSettingsRestore(onRestored?: () => void) {
       notifyThemeRestoreFailure();
       return;
     }
+    if (automaticRemoteMedia) setAutomaticRemoteMedia(false);
     updateSettings({
+      readRepliesAloud: DEFAULT_UNIFIED_SETTINGS.readRepliesAloud,
+      speechServiceAddress: DEFAULT_UNIFIED_SETTINGS.speechServiceAddress,
       appearanceContrast: DEFAULT_UNIFIED_SETTINGS.appearanceContrast,
       diffColorScheme: DEFAULT_UNIFIED_SETTINGS.diffColorScheme,
       chatWidth: DEFAULT_UNIFIED_SETTINGS.chatWidth,
@@ -652,6 +665,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       fontSizeInterface: DEFAULT_UNIFIED_SETTINGS.fontSizeInterface,
       fontSizePrompt: DEFAULT_UNIFIED_SETTINGS.fontSizePrompt,
       fontSizeCode: DEFAULT_UNIFIED_SETTINGS.fontSizeCode,
+      fontSizeContextMenu: DEFAULT_UNIFIED_SETTINGS.fontSizeContextMenu,
       fontSizeTerminal: DEFAULT_UNIFIED_SETTINGS.fontSizeTerminal,
       browserDefaultViewport: DEFAULT_UNIFIED_SETTINGS.browserDefaultViewport,
       browserDefaultZoomFactor: DEFAULT_UNIFIED_SETTINGS.browserDefaultZoomFactor,
@@ -1047,6 +1061,7 @@ export function GeneralSettingsPanel() {
 }
 
 export function ChatSettingsPanel() {
+  const automaticRemoteMedia = useAutomaticRemoteMedia();
   const modifierLabel = isMacPlatform(navigator.platform) ? "⌘" : "Ctrl";
   const sendShortcutOptions = [
     { value: "enter", label: "Enter" },
@@ -1058,6 +1073,20 @@ export function ChatSettingsPanel() {
 
   return (
     <SettingsPageContainer>
+      <ReplySpeechSettings />
+      <SettingsSection id="external-media" title="External media">
+        <SettingsRow
+          title="Automatically load external images and media"
+          description="Off by default. Loading external media contacts its host. This preference applies to this device."
+          control={
+            <Switch
+              checked={automaticRemoteMedia}
+              onCheckedChange={(checked) => setAutomaticRemoteMedia(Boolean(checked))}
+              aria-label="Automatically load external media"
+            />
+          }
+        />
+      </SettingsSection>
       <SettingsSection id="composer" title="Composer">
         <SettingsRow
           {...searchableSetting("composer-rich-text")}

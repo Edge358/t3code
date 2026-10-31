@@ -2,7 +2,12 @@
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+// Retain precedence tests for upstream-capable builds; private-public-config.test.ts
+// exercises the actual private policy without this mock.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({
+  privateBuildPolicy: { cloudServices: true, reporting: true },
+}));
 
 import { loadRepoEnv } from "./public-config.ts";
 

@@ -1,4 +1,5 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import { type ReactNode, useState } from "react";
 
 import { useFaviconForThreadUrl } from "~/browserFaviconStore";
@@ -11,7 +12,14 @@ export function FaviconImage(props: {
   fallback: ReactNode;
   className?: string | undefined;
 }) {
-  const sources = props.sources.filter((source): source is string => Boolean(source));
+  const sources = props.sources.filter((source): source is string =>
+    Boolean(
+      source &&
+      (privateBuildPolicy.remoteIcons ||
+        source.startsWith("data:image/") ||
+        source.startsWith("blob:")),
+    ),
+  );
   return (
     <FaviconImageAttempt
       key={sources.join("\0")}

@@ -81,11 +81,15 @@ type TypographySettings = Pick<
   | "fontSizeInterface"
   | "fontSizePrompt"
   | "fontSizeCode"
+  | "fontSizeContextMenu"
   | "fontSizeTerminal"
 >;
 
 export function getChangedTypographySettingLabels(settings: TypographySettings): string[] {
   return [
+    ...(settings.fontSizeContextMenu !== DEFAULT_UNIFIED_SETTINGS.fontSizeContextMenu
+      ? ["Right-click menu size"]
+      : []),
     ...(settings.fontFamilySans !== DEFAULT_UNIFIED_SETTINGS.fontFamilySans ||
     settings.fontSizeInterface !== DEFAULT_UNIFIED_SETTINGS.fontSizeInterface
       ? ["Interface font"]

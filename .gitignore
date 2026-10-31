@@ -48,3 +48,6 @@ node_modules/
 
 # pnpm content-addressable store; never belongs in the repo.
 .pnpm-store/
+
+# Private local build records and historical evidence; never publish with source.
+/docs/local/

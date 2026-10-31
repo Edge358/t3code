@@ -175,6 +175,9 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 }
 
 @theme inline {
+  --text-chat-body: var(--font-size-code, 13px);
+  --text-draft-heading: calc(1rem + 6px);
+  --text-draft-heading--line-height: 1.2;
   /* Two steps below Tailwind's text-xs (12px) for dense UI: metadata rows,
      badges, counters, keyboard hints and diagnostics tables. 2xs is 11px,
      3xs is 10px. Provider icon overlays use 4xs (8px) and 5xs (7px) to fit
@@ -2226,8 +2229,15 @@ code {
   border-collapse: collapse;
   overflow-wrap: normal;
   word-break: normal;
-  /* One step under 15px prose. */
-  font-size: 0.875rem;
+}
+
+/* Keep answer content at one readable size, including code and tables. */
+.chat-markdown :is(h1, h2, h3, h4, h5, h6, table),
+.chat-markdown .chat-markdown-shiki :is(.shiki, .diffs),
+.chat-markdown .chat-markdown-codeblock pre,
+.chat-markdown pre code,
+.chat-markdown :not(pre) > code {
+  font-size: inherit;
 }
 
 /* Top-aligned so wrapped rows share a first line, and the outer columns sit

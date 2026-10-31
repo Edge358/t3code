@@ -96,6 +96,7 @@ function startClientAppearance(): void {
       previous.fontSizeInterface !== settings.fontSizeInterface ||
       previous.fontSizePrompt !== settings.fontSizePrompt ||
       previous.fontSizeCode !== settings.fontSizeCode ||
+      previous.fontSizeContextMenu !== settings.fontSizeContextMenu ||
       previous.fontSmoothing !== settings.fontSmoothing ||
       previousSeparateFonts !== separateFonts
     ) {
@@ -106,6 +107,7 @@ function startClientAppearance(): void {
         sizeInterface: settings.fontSizeInterface,
         sizePrompt: settings.fontSizePrompt,
         sizeCode: settings.fontSizeCode,
+        sizeContextMenu: settings.fontSizeContextMenu,
         smoothing: settings.fontSmoothing,
         separate: separateFonts,
       });

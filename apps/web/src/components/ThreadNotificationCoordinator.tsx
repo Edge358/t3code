@@ -16,6 +16,7 @@ import {
   ShieldQuestionIcon,
 } from "lucide-react";
 
+import { speakCompletedReply } from "../replySpeech";
 import { getClientSettings, subscribeClientSettings } from "../hooks/useSettings";
 import { isWindowsPlatform } from "../lib/utils";
 import { environmentSummaries } from "../state/presentation";
@@ -61,6 +62,8 @@ export function startThreadNotifications(
 ): () => void {
   const pending = new Map<string, { environmentId: EnvironmentId; notification: Notification }>();
   const watched = new Map<EnvironmentId, WatchedEnvironment>();
+  let speechEnabledAt = Number.POSITIVE_INFINITY;
+  let speechWasEnabled = false;
 
   const trackNotification = (environmentId: EnvironmentId, notification: Notification) => {
     pending.get(notification.tag)?.notification.close();
@@ -80,6 +83,27 @@ export function startThreadNotifications(
     kind: ThreadNotificationKind,
   ) => {
     const { thread, status } = state;
+    if (
+      kind === "completion" &&
+      state.completedAt !== null &&
+      state.completedAt >= speechEnabledAt
+    ) {
+      void speakCompletedReply(
+        registry,
+        environmentId,
+        state.raw,
+        () =>
+          watched.get(environmentId)?.previous.get(thread.id)?.raw.latestRunId ===
+          state.raw.latestRunId,
+      ).catch(() => {
+        toastManager.add({
+          type: "warning",
+          title: "Reply could not be read aloud",
+          description:
+            "Your reply is saved. Check the speech service in Chat settings. Speech is not retried automatically.",
+        });
+      });
+    }
     const { notificationMode: mode, inAppNotificationsEnabled } = getClientSettings();
     const active = (router.state.matches.at(-1)?.params ?? {}) as {
       environmentId?: string;
@@ -286,7 +310,10 @@ export function startThreadNotifications(
 
   const syncEnvironments = () => {
     const { notificationMode, inAppNotificationsEnabled } = getClientSettings();
-    const enabled = notificationMode !== "off" || inAppNotificationsEnabled;
+    const enabled =
+      notificationMode !== "off" ||
+      inAppNotificationsEnabled ||
+      (getClientSettings().readRepliesAloud && Boolean(window.desktopBridge?.speakReply));
     const environmentIds = enabled ? registry.get(environmentSummaries.environmentIdsAtom) : [];
     const activeIds = new Set(environmentIds);
     for (const [environmentId, entry] of watched) {
@@ -343,6 +370,11 @@ export function startThreadNotifications(
   };
 
   const onSettings = () => {
+    const speechEnabled = getClientSettings().readRepliesAloud;
+    if (speechEnabled !== speechWasEnabled) {
+      speechEnabledAt = speechEnabled ? Date.now() : Number.POSITIVE_INFINITY;
+      speechWasEnabled = speechEnabled;
+    }
     applyMode();
     syncEnvironments();
   };

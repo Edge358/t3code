@@ -1,3 +1,4 @@
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import {
   RelayManagedEndpointOrigin,
   RelayManagedEndpointRuntimeConfig,
@@ -41,7 +42,7 @@ export const decodeConfirmedOrigin = Schema.decodeUnknownOption(
 );
 
 export function isAgentActivityPublishingEnabledValue(value: string | null): boolean {
-  return value === "true";
+  return privateBuildPolicy.cloudServices && value === "true";
 }
 
 /**
@@ -52,6 +53,7 @@ export const readAgentActivityPublishingActive: (
   secrets: ServerSecretStore.ServerSecretStore["Service"],
 ) => Effect.Effect<boolean> = Effect.fn("config.readAgentActivityPublishingActive")(
   function* (secrets: ServerSecretStore.ServerSecretStore["Service"]) {
+    if (!privateBuildPolicy.cloudServices) return false;
     const readSecretString = (name: string) =>
       secrets
         .get(name)
@@ -91,7 +93,9 @@ export const readRelayConnection = Effect.all([
   readSecretString(RELAY_ENVIRONMENT_CREDENTIAL_SECRET),
 ]).pipe(
   Effect.map(([url, environmentCredential]) =>
-    url && environmentCredential ? { url, environmentCredential } : null,
+    privateBuildPolicy.cloudServices && url && environmentCredential
+      ? { url, environmentCredential }
+      : null,
   ),
 );
 

@@ -1,4 +1,9 @@
 import { assert, describe, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
+
+// Preserve upstream parser coverage under a deliberately rebuilt reporting-enabled
+// policy. privateBuildPolicy.test.ts exercises the actual, unmocked hard restriction.
+vi.mock("./privateBuildPolicy.ts", () => ({ privateBuildPolicy: { reporting: true } }));
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";

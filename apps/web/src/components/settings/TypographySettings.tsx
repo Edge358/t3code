@@ -3,10 +3,12 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   DEFAULT_UNIFIED_SETTINGS,
   MAX_CODE_FONT_SIZE,
+  MAX_CONTEXT_MENU_FONT_SIZE,
   MAX_INTERFACE_FONT_SIZE,
   MAX_PROMPT_FONT_SIZE,
   MAX_TERMINAL_FONT_SIZE,
   MIN_CODE_FONT_SIZE,
+  MIN_CONTEXT_MENU_FONT_SIZE,
   MIN_INTERFACE_FONT_SIZE,
   MIN_PROMPT_FONT_SIZE,
   MIN_TERMINAL_FONT_SIZE,
@@ -63,7 +65,7 @@ function InterfaceFontRow({ preview }: { preview?: ReactNode }) {
   return (
     <FontFamilySettingsRow
       {...searchableSetting("interface-font")}
-      description="Everything outside code blocks and the terminal."
+      description="Lettering for the interface and ordinary messages. Size controls the sidebar and settings."
       defaultFamily={defaults.sans}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilySans}
       value={settings.fontFamilySans}
@@ -120,7 +122,7 @@ function PromptFontRow() {
 
 function CodeFontRow({
   title,
-  description = "Code blocks, diffs, and file previews.",
+  description = "Code lettering. Size controls replies, code blocks, diffs, and file previews.",
   preview,
 }: {
   title?: string;
@@ -147,7 +149,7 @@ function CodeFontRow({
       }
       requireMonospace
       size={{
-        label: "Code font size",
+        label: "Chat and code text size",
         min: MIN_CODE_FONT_SIZE,
         max: MAX_CODE_FONT_SIZE,
         value: settings.fontSizeCode,
@@ -229,6 +231,57 @@ function FontSmoothingRow() {
   );
 }
 
+function ContextMenuSizeRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <SettingsRow
+      {...searchableSetting("context-menu-size")}
+      description="Text size in right-click menus. Uses the Interface font."
+      resetAction={
+        settings.fontSizeContextMenu !== DEFAULT_UNIFIED_SETTINGS.fontSizeContextMenu ? (
+          <SettingResetButton
+            label="right-click menu size"
+            onClick={() =>
+              updateSettings({ fontSizeContextMenu: DEFAULT_UNIFIED_SETTINGS.fontSizeContextMenu })
+            }
+          />
+        ) : null
+      }
+      control={
+        <Select
+          value={String(settings.fontSizeContextMenu)}
+          onValueChange={(next) => {
+            if (typeof next !== "string") return;
+            const size = Number(next);
+            if (
+              Number.isInteger(size) &&
+              size >= MIN_CONTEXT_MENU_FONT_SIZE &&
+              size <= MAX_CONTEXT_MENU_FONT_SIZE
+            ) {
+              updateSettings({ fontSizeContextMenu: size });
+            }
+          }}
+        >
+          <SelectTrigger size="sm" className="w-22" aria-label="Right-click menu size">
+            <SelectValue>{settings.fontSizeContextMenu} px</SelectValue>
+          </SelectTrigger>
+          <SelectPopup align="end" alignItemWithTrigger={false}>
+            {Array.from(
+              { length: MAX_CONTEXT_MENU_FONT_SIZE - MIN_CONTEXT_MENU_FONT_SIZE + 1 },
+              (_, index) => MIN_CONTEXT_MENU_FONT_SIZE + index,
+            ).map((px) => (
+              <SelectItem hideIndicator key={px} value={String(px)}>
+                {px} px
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      }
+    />
+  );
+}
+
 function WordWrapRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -295,7 +348,7 @@ function SimpleFontRows() {
       <InterfaceFontRow preview={<PromptFontPreview />} />
       <CodeFontRow
         title="Monospace font"
-        description="Code blocks, diffs, file previews, and the terminal."
+        description="Font controls code and terminal lettering. Size controls the typing box, replies, code, and terminal."
         preview={
           <>
             <CodeFontPreview />
@@ -337,6 +390,7 @@ export function TypographySection() {
   return (
     <SettingsSection id="typography" title="Typography">
       {showAdvanced ? <FontSettingsGroup /> : <SimpleFontRows />}
+      <ContextMenuSizeRow />
       <WordWrapRow />
       <AdvancedSettings
         targetIds={[searchableSetting("separate-fonts").id, searchableSetting("font-smoothing").id]}

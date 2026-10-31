@@ -1,5 +1,47 @@
 # T3 Code
 
+> **Custom Windows variant:** This checkout contains local changes based on
+> upstream v0.1.6. Start with [Custom changes and validation](CUSTOM_CHANGES.md)
+> and the [security/privacy review](docs/custom-build/privacy-review.md).
+> The upstream overview and installation instructions below are retained for
+> reference; those downloads do not contain this variant's changes. Cloud/remote
+> features described below are restricted in this build. Upstream credit and
+> license notices remain intact.
+
+## Start here: this custom build
+
+**Current checkpoint (2026-10-31):** private.15 is built and verified in the
+unpacked Windows test app. Readability, project navigation, optional speech and
+Claude Limits changes are complete. The focused code review and documentation
+cleanup are complete. This local source checkpoint is on `edge358-custom-build`,
+preserving the upstream v0.1.6 history. The installer has not been executed.
+
+Use this README as the project map. The linked documents contain the details;
+update those documents rather than copying their contents here.
+
+| What you need                                 | Where to go                                                                            |
+| --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| What changed, why, and which defaults changed | [Custom changes](CUSTOM_CHANGES.md)                                                    |
+| Code review, tests and known limitations      | [Validation record](CUSTOM_CHANGES.md#6-review-fixes-and-validation-record)            |
+| Security/privacy findings and protections     | [Privacy review](docs/custom-build/privacy-review.md)                                  |
+| How to maintain and build this variant        | [Build guidance](CUSTOM_CHANGES.md#9-maintaining-and-building-this-variant)            |
+| Possible separate contributions to upstream   | [Contribution candidates](CUSTOM_CHANGES.md#7-possible-independent-upstream-proposals) |
+| Deferred features and unverified work         | [Remaining scope](CUSTOM_CHANGES.md#8-deferred-work-and-publication-boundary)          |
+
+**Next recommended step:** install the verified Windows build when requested,
+then check the installed app's settings, provider limits and speech behavior.
+The local source checkpoint precedes installation. No hosted fork or upload is
+part of that checkpoint. Synchronized conversation deletion remains deferred.
+
+**Private local records:** on the development machine, use the
+[private index](docs/local/README_T3Code_Review.md),
+[detailed build/decision record](docs/local/T3Code_Private_Build_Record.md), and
+[historical archive](docs/local/T3Code_Document_Archive/2026-10-31_before_consolidation/README.md).
+These optional links point into the Git-ignored `docs/local` folder. Those files
+are intentionally absent from a public clone and require their own backup.
+
+## Upstream overview
+
 T3 Code is an "agent harness control surface". It enables control of the agents on your machine with a best-in-class mobile app ([iOS](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824), [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code)), [web app](https://app.t3.codes) and [Electron-based desktop app](https://t3.codes).
 
 Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, and Google Antigravity. If they're set up on your computer, T3 Code can control them.

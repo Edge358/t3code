@@ -1,4 +1,10 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import { vi } from "vite-plus/test";
+
+// Exercise upstream lifecycle behavior; PrivateBuildCloud.test.ts checks the shipping policy.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({
+  privateBuildPolicy: { cloudServices: true },
+}));
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";

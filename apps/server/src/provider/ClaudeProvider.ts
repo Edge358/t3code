@@ -5,6 +5,7 @@ import {
   type ServerProviderSlashCommand,
   type ServerProviderResetCredits,
 } from "@t3tools/contracts";
+import type { ClaudePlanUsageResult } from "./claudePlanUsage.ts";
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -459,6 +460,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   /** Shared with the adapter so turn events reuse the scoped-bucket names this probe saw. */
   scopedLimitNames?: Ref.Ref<ClaudeScopedLimitNames>,
   resolveResetCredits?: (version: string) => Effect.Effect<ServerProviderResetCredits | undefined>,
+  resolvePlanUsage?: (version: string) => Effect.Effect<ClaudePlanUsageResult>,
 ): Effect.fn.Return<
   ServerProviderDraft,
   never,
@@ -636,18 +638,49 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
       subscriptionType: capabilities.subscriptionType,
       authMethod: capabilities.tokenSource,
     });
-  const usageCheckedAt = capabilities.usageCheckedAt ?? checkedAt;
-  const usageLimits = !capabilities.usage
-    ? makeUnavailableUsageLimits({ checkedAt, reason: "probeFailed" })
-    : scopedLimitNames
-      ? yield* recordClaudeUsageResponse(scopedLimitNames, {
-          response: capabilities.usage,
-          checkedAt: usageCheckedAt,
-        })
-      : claudeUsageResponseToLimits({
-          response: capabilities.usage,
-          checkedAt: usageCheckedAt,
-        }).limits;
+  let usage = capabilities.usage;
+  let usageCheckedAt = capabilities.usageCheckedAt ?? checkedAt;
+  let usageMessage: string | undefined;
+  // The CLI's essential-traffic-only mode can suppress get_usage too. Only
+  // recover a first-party subscription using this instance's on-disk login.
+  if (
+    resolvePlanUsage &&
+    parsedVersion &&
+    !customApiEndpoint &&
+    capabilities.subscriptionType &&
+    (capabilities.apiProvider === undefined || capabilities.apiProvider === "firstParty") &&
+    capabilities.tokenSource !== "none" &&
+    capabilities.tokenSource !== "CLAUDE_CODE_OAUTH_TOKEN" &&
+    normalizeClaudeAuthMethod(capabilities.tokenSource) !== "apiKey" &&
+    (!capabilities.apiKeySource || capabilities.apiKeySource === "none") &&
+    !resolvedEnvironment.CLAUDE_CODE_OAUTH_TOKEN &&
+    !resolvedEnvironment.ANTHROPIC_API_KEY &&
+    !resolvedEnvironment.ANTHROPIC_AUTH_TOKEN &&
+    usage?.rate_limits_available !== false &&
+    !usage?.rate_limits
+  ) {
+    const recovered = yield* resolvePlanUsage(parsedVersion);
+    usageCheckedAt = DateTime.formatIso(yield* DateTime.now);
+    if ("usage" in recovered) usage = recovered.usage;
+    else usageMessage = recovered.message;
+  }
+  const usageLimits = usageMessage
+    ? makeUnavailableUsageLimits({
+        checkedAt: usageCheckedAt,
+        reason: "probeFailed",
+        message: usageMessage,
+      })
+    : !usage
+      ? makeUnavailableUsageLimits({ checkedAt, reason: "probeFailed" })
+      : scopedLimitNames
+        ? yield* recordClaudeUsageResponse(scopedLimitNames, {
+            response: usage,
+            checkedAt: usageCheckedAt,
+          })
+        : claudeUsageResponseToLimits({
+            response: usage,
+            checkedAt: usageCheckedAt,
+          }).limits;
   const resetCredits =
     resolveResetCredits &&
     capabilities.subscriptionType &&

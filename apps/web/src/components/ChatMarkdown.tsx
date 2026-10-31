@@ -66,6 +66,7 @@ import { mediaUrlReference } from "@t3tools/client-runtime/media-reference";
 import { mediaKindFromPath, mediaMimeTypeFromExtension } from "@t3tools/shared/mediaPreview";
 import { InlineAudioPreview } from "./files/InlineAudioPreview";
 import { HostImageUrlContext } from "./chat/hostImageUrl";
+import { withRemoteMediaConsent } from "./chat/RemoteMediaConsent";
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -1369,7 +1370,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       </code>
     );
   },
-  img: function MarkdownImage({ node, title, src, alt, ...props }) {
+  img: withRemoteMediaConsent(function MarkdownImage({ node, title, src, alt, ...props }) {
     const {
       expandMedia,
       cwd,
@@ -1552,7 +1553,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       );
     }
     return <ChatMarkdownImageFallback alt={altText} copyMarkdown={copyMarkdown} kind={kind} />;
-  },
+  }),
   table: function MarkdownTableRenderer({ node: _node, ...props }) {
     return <MarkdownTable {...props} />;
   },
@@ -1761,7 +1762,7 @@ function ChatMarkdown({
       className={cn(
         "chat-markdown w-full min-w-0 [overflow-wrap:anywhere] [word-break:break-word]",
         !inline &&
-          "text-sm leading-relaxed text-foreground/[calc(90%+var(--appearance-contrast-boost)/10)]",
+          "text-chat-body leading-relaxed text-foreground/[calc(90%+var(--appearance-contrast-boost)/10)]",
         className,
       )}
       data-streaming={componentState.isStreaming ? "" : undefined}

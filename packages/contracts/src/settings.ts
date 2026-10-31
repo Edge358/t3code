@@ -82,7 +82,7 @@ export const SidebarAutoSettleAfterDays = Schema.Number.check(
   }),
 );
 export type SidebarAutoSettleAfterDays = typeof SidebarAutoSettleAfterDays.Type;
-const DEFAULT_SIDEBAR_AUTO_SETTLE_AFTER_DAYS: SidebarAutoSettleAfterDays = 3;
+const DEFAULT_SIDEBAR_AUTO_SETTLE_AFTER_DAYS: SidebarAutoSettleAfterDays | null = null;
 
 export const MAX_SNOOZE_PRESET_MINUTES = 30 * 24 * 60;
 export const MAX_SNOOZE_PRESETS = 8;
@@ -152,7 +152,7 @@ export type PanelAnimationDurationMs = typeof PanelAnimationDurationMs.Type;
 const DEFAULT_PANEL_ANIMATION_DURATION_MS: PanelAnimationDurationMs = 0;
 
 export const MIN_INTERFACE_FONT_SIZE = 12;
-export const MAX_INTERFACE_FONT_SIZE = 20;
+export const MAX_INTERFACE_FONT_SIZE = 24;
 export const InterfaceFontSize = Schema.Int.check(
   Schema.isBetween({ minimum: MIN_INTERFACE_FONT_SIZE, maximum: MAX_INTERFACE_FONT_SIZE }),
 );
@@ -160,7 +160,7 @@ export type InterfaceFontSize = typeof InterfaceFontSize.Type;
 export const DEFAULT_INTERFACE_FONT_SIZE: InterfaceFontSize = 16;
 
 export const MIN_PROMPT_FONT_SIZE = 12;
-export const MAX_PROMPT_FONT_SIZE = 20;
+export const MAX_PROMPT_FONT_SIZE = 24;
 export const PromptFontSize = Schema.Int.check(
   Schema.isBetween({ minimum: MIN_PROMPT_FONT_SIZE, maximum: MAX_PROMPT_FONT_SIZE }),
 );
@@ -168,15 +168,22 @@ export type PromptFontSize = typeof PromptFontSize.Type;
 export const DEFAULT_PROMPT_FONT_SIZE: PromptFontSize = 14;
 
 export const MIN_CODE_FONT_SIZE = 10;
-export const MAX_CODE_FONT_SIZE = 18;
+export const MAX_CODE_FONT_SIZE = 24;
 export const CodeFontSize = Schema.Int.check(
   Schema.isBetween({ minimum: MIN_CODE_FONT_SIZE, maximum: MAX_CODE_FONT_SIZE }),
 );
 export type CodeFontSize = typeof CodeFontSize.Type;
 export const DEFAULT_CODE_FONT_SIZE: CodeFontSize = 13;
 
+export const MIN_CONTEXT_MENU_FONT_SIZE = 12;
+export const MAX_CONTEXT_MENU_FONT_SIZE = 24;
+export const ContextMenuFontSize = Schema.Int.check(
+  Schema.isBetween({ minimum: MIN_CONTEXT_MENU_FONT_SIZE, maximum: MAX_CONTEXT_MENU_FONT_SIZE }),
+);
+export const DEFAULT_CONTEXT_MENU_FONT_SIZE = 18;
+
 export const MIN_TERMINAL_FONT_SIZE = 8;
-export const MAX_TERMINAL_FONT_SIZE = 20;
+export const MAX_TERMINAL_FONT_SIZE = 24;
 export const TerminalFontSize = Schema.Int.check(
   Schema.isBetween({ minimum: MIN_TERMINAL_FONT_SIZE, maximum: MAX_TERMINAL_FONT_SIZE }),
 );
@@ -349,6 +356,8 @@ export type ModelPreferences = {
 };
 
 export const ClientSettingsSchema = Schema.Struct({
+  readRepliesAloud: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  speechServiceAddress: Schema.String.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   notificationMode: NotificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
   ),
@@ -435,6 +444,9 @@ export const ClientSettingsSchema = Schema.Struct({
   fontSizeCode: CodeFontSize.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_CODE_FONT_SIZE)),
   ),
+  fontSizeContextMenu: ContextMenuFontSize.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_CONTEXT_MENU_FONT_SIZE)),
+  ),
   fontSizeTerminal: TerminalFontSize.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TERMINAL_FONT_SIZE)),
   ),
@@ -474,7 +486,7 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   proactivePanelsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   showSkillsInSlashMenu: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  boringSidebarEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  boringSidebarEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   boringSidebarMultilineRows: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(false)),
   ),
@@ -1172,9 +1184,9 @@ export const StorageCleanupSettings = Schema.Struct({
   worktreeOnDelete: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   worktreeUnchanged: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   browserArtifactsAfterDays: StorageRetentionDays.pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
+    Schema.withDecodingDefault(Effect.succeed(30)),
   ),
-  logsAfterDays: StorageRetentionDays.pipe(Schema.withDecodingDefault(Effect.succeed(null))),
+  logsAfterDays: StorageRetentionDays.pipe(Schema.withDecodingDefault(Effect.succeed(30))),
 });
 export type StorageCleanupSettings = typeof StorageCleanupSettings.Type;
 
@@ -1197,9 +1209,11 @@ export const ServerSettings = Schema.Struct({
   responseStreamingMode: ResponseStreamingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("paragraph" as const)),
   ),
-  enableProviderUpdateChecks: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  enableProviderUpdateChecks: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(false)),
+  ),
   continueThreadsAfterServerUpdate: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(true)),
+    Schema.withDecodingDefault(Effect.succeed(false)),
   ),
 
   enableAgentBrowserAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
@@ -1264,7 +1278,7 @@ export const ServerSettings = Schema.Struct({
   sidebarAutoSettleKeepPullRequests: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(false)),
   ),
-  sidebarAutoSettleOnMerge: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  sidebarAutoSettleOnMerge: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   backgroundActivity: BackgroundActivitySettings,
 
   automaticGitFetchInterval: Schema.DurationFromMillis.pipe(
@@ -1719,6 +1733,8 @@ export function requiredScopesForProjectMutation(
 }
 
 export const ClientSettingsPatch = Schema.Struct({
+  readRepliesAloud: Schema.optionalKey(Schema.Boolean),
+  speechServiceAddress: Schema.optionalKey(Schema.String),
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
   diffColorScheme: Schema.optionalKey(DiffColorScheme),
@@ -1753,6 +1769,7 @@ export const ClientSettingsPatch = Schema.Struct({
   fontSizeInterface: Schema.optionalKey(InterfaceFontSize),
   fontSizePrompt: Schema.optionalKey(PromptFontSize),
   fontSizeCode: Schema.optionalKey(CodeFontSize),
+  fontSizeContextMenu: Schema.optionalKey(ContextMenuFontSize),
   fontSizeTerminal: Schema.optionalKey(TerminalFontSize),
   fontFamilyCode: Schema.optionalKey(FontFamilyPreference),
   fontFamilyComposer: Schema.optionalKey(FontFamilyPreference),

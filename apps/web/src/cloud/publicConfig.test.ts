@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+// Retain upstream origin validation coverage; privatePublicConfig.test.ts checks the actual policy.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({
+  privateBuildPolicy: { cloudServices: true },
+}));
+
 import { hasCloudPublicConfig } from "./publicConfig.ts";
 
 afterEach(() => {

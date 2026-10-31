@@ -1,4 +1,5 @@
 import { createClerkBridge } from "@clerk/electron";
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import * as NodeURL from "node:url";
 import { storage } from "@clerk/electron/storage";
 import * as Context from "effect/Context";
@@ -134,28 +135,29 @@ export const make = Effect.gen(function* () {
     if (handleOpenUrl(url)) event.preventDefault();
   });
 
-  yield* Effect.acquireRelease(
-    Effect.try({
-      try: () =>
-        createDesktopClerkBridge(environment.stateDir, environment.isDevelopment, userDataPath),
-      catch: (cause) =>
-        new DesktopClerkBridgeInitializationError({
-          stateDir: environment.stateDir,
-          isDevelopment: environment.isDevelopment,
-          cause,
-        }),
-    }),
-    (bridge) =>
+  if (privateBuildPolicy.cloudServices)
+    yield* Effect.acquireRelease(
       Effect.try({
-        try: () => bridge.cleanup(),
+        try: () =>
+          createDesktopClerkBridge(environment.stateDir, environment.isDevelopment, userDataPath),
         catch: (cause) =>
-          new DesktopClerkBridgeCleanupError({
+          new DesktopClerkBridgeInitializationError({
             stateDir: environment.stateDir,
             isDevelopment: environment.isDevelopment,
             cause,
           }),
-      }).pipe(Effect.orDie),
-  );
+      }),
+      (bridge) =>
+        Effect.try({
+          try: () => bridge.cleanup(),
+          catch: (cause) =>
+            new DesktopClerkBridgeCleanupError({
+              stateDir: environment.stateDir,
+              isDevelopment: environment.isDevelopment,
+              cause,
+            }),
+        }).pipe(Effect.orDie),
+    );
 
   return DesktopClerk.of({
     configure: Effect.gen(function* () {

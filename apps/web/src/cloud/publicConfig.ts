@@ -1,3 +1,4 @@
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import {
   clerkFrontendApiHostnameFromPublishableKey,
   relayClerkTokenOptions,
@@ -62,6 +63,7 @@ export function resolveCloudPublicConfig(): CloudPublicConfig {
 }
 
 export function resolveRelayTracingConfig() {
+  if (!privateBuildPolicy.reporting) return null;
   // The relay exporter is created during module initialization, so this must be synchronous.
   if (typeof window !== "undefined" && window.desktopBridge?.getRelayTelemetryEnabled() === false) {
     return null;
@@ -77,6 +79,7 @@ export function resolveRelayTracingConfig() {
 }
 
 export function hasCloudPublicConfig(): boolean {
+  if (!privateBuildPolicy.cloudServices) return false;
   const config = resolveCloudPublicConfig();
   if (!config.clerkPublishableKey || !config.clerkJwtTemplate || !config.relayUrl) {
     return false;

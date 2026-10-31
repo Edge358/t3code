@@ -1,3 +1,4 @@
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import {
   connectLoopbackRedirectUri,
   CONNECT_OAUTH_SCOPES,
@@ -23,13 +24,15 @@ const CLOUD_CLI_OAUTH_LOOPBACK_PORT = 34338;
 const CLOUD_CLI_OAUTH_SCOPES = CONNECT_OAUTH_SCOPES;
 
 function validateRelayUrl(value: string) {
-  const relayUrl = normalizeSecureRelayUrl(value);
+  const relayUrl = privateBuildPolicy.cloudServices ? normalizeSecureRelayUrl(value) : null;
   return relayUrl === null
     ? Effect.fail(
         new Config.ConfigError(
           new Schema.SchemaError(
             new SchemaIssue.InvalidValue({
-              message: "Relay URL must be a secure absolute HTTPS origin.",
+              message: privateBuildPolicy.cloudServices
+                ? "Relay URL must be a secure absolute HTTPS origin."
+                : "T3 account and relay services are disabled in this private build.",
             }),
           ),
         ),

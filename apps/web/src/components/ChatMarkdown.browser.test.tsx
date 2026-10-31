@@ -152,6 +152,32 @@ it("loads a host image through the page's own route when there is no environment
   );
 });
 
+it("keeps reply text, inline code, headings and tables at 20px with Interface 24", async () => {
+  setup();
+  const root = document.documentElement;
+  const previousSize = root.style.fontSize;
+  const previousCodeSize = root.style.getPropertyValue("--font-size-code");
+  try {
+    root.style.fontSize = "24px";
+    root.style.setProperty("--font-size-code", "20px");
+    await using screen = await render(
+      <ChatMarkdown
+        cwd="/tmp/project"
+        text={"## Heading\n\nReply with `code`.\n\n| Column |\n| --- |\n| Value |"}
+      />,
+    );
+    const nodes = screen.container.querySelectorAll("p, code, h2, table");
+    expect(nodes.length).toBeGreaterThanOrEqual(4);
+    for (const node of nodes) expect(getComputedStyle(node).fontSize).toBe("20px");
+    root.style.setProperty("--font-size-code", "22px");
+    for (const node of nodes) expect(getComputedStyle(node).fontSize).toBe("22px");
+  } finally {
+    root.style.fontSize = previousSize;
+    if (previousCodeSize) root.style.setProperty("--font-size-code", previousCodeSize);
+    else root.style.removeProperty("--font-size-code");
+  }
+});
+
 it("reuses the parse of a streaming reply's finished blocks when it remounts", async () => {
   setup();
   const message = (
@@ -181,20 +207,19 @@ it("reuses the parse of a remounted message that has stable extra plugins", asyn
 });
 
 describe("ChatMarkdown favicon privacy", () => {
-  it("suppresses private link images while preserving public links across updates", async () => {
+  it("suppresses remote favicons while preserving links and bundled icons across updates", async () => {
     setup();
     const markdown = (url: string) => <ChatMarkdown cwd="/tmp/project" text={`[Link](${url})`} />;
     await using screen = await render(markdown("https://example.com"));
     const { container, rerender } = screen;
-    expect([...container.querySelectorAll("img")].map((image) => image.src)).toEqual([
-      "https://www.google.com/s2/favicons?domain=example.com&sz=32",
-    ]);
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+    expect(container.querySelector("a")?.href).toBe("https://example.com/");
     for (const url of ["http://192.168.1.10:8080", "http://localhost:3000", "http://home.arpa"]) {
       await rerender(markdown(url));
       expect(container.querySelectorAll("img")).toHaveLength(0);
     }
     await rerender(markdown("https://example.com"));
-    expect(container.querySelectorAll("img")).toHaveLength(1);
+    expect(container.querySelectorAll("img")).toHaveLength(0);
     await rerender(markdown("https://github.com/pingdotgg/t3code/pull/1"));
     expect(container.querySelectorAll("img")).toHaveLength(0);
     expect(container.querySelector("a svg")).not.toBeNull();
@@ -403,12 +428,13 @@ describe("ChatMarkdown Windows file links", () => {
     setup();
     for (const parseRawHtml of [true, false]) {
       await using screen = await renderWindows(
-        "[unsafe](javascript:alert(1)) and [unknown](d:alert(1))",
+        "[unsafe](javascript:alert(1)) and [unknown](unknown:alert(1))",
         parseRawHtml,
       );
       const { container } = screen;
       expect(container.innerHTML).not.toContain("javascript:");
-      expect(container.innerHTML).not.toContain("d:alert");
+      // A single-letter prefix such as d: is a Windows drive, not an unknown scheme.
+      expect(container.innerHTML).not.toContain("unknown:alert");
       expect(fileHrefs(container)).toEqual([]);
     }
   });

@@ -3,6 +3,7 @@ import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
+import { symlinksSupported } from "@t3tools/shared/testing/symlinks";
 
 import { discoverClaudeSkills } from "./ClaudeSkills.ts";
 import { planClaudeSkillDispatch } from "./ClaudeSkillDispatch.ts";
@@ -20,6 +21,7 @@ const writeSkill = Effect.fn(function* (
 });
 
 it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
+  const itWithSymlinks = it.effect.skipIf(!symlinksSupported);
   it.effect("discovers enabled plugin skills with manifest names and ignores skill overrides", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -76,7 +78,7 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
     }),
   );
 
-  it.effect("merges plugin enablement and selects installs in native registry order", () =>
+  itWithSymlinks("merges plugin enablement and selects installs in native registry order", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
@@ -244,49 +246,51 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
     }),
   );
 
-  it.effect("uses the native cache root, root-skill fallback and manifest path boundaries", () =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const workspace = yield* fs.makeTempDirectoryScoped({ prefix: "t3-claude-skills-" });
-      const configDir = path.join(workspace, "config");
-      const pluginsDir = path.join(workspace, "plugin-cache");
-      const plugin = path.join(pluginsDir, "installed");
-      const outside = path.join(workspace, "outside");
-      yield* writeSkill(pluginsDir, "installed", "---\nname: plugin:root.alias\n---\n");
-      yield* fs.makeDirectory(configDir);
-      yield* fs.writeFileString(
-        path.join(configDir, "settings.json"),
-        '{"enabledPlugins":{"plugin@shop":true}}',
-      );
-      yield* fs.writeFileString(
-        path.join(pluginsDir, "installed_plugins.json"),
-        JSON.stringify({ plugins: { "plugin@shop": [{ scope: "user", installPath: plugin }] } }),
-      );
-      const environment = { CLAUDE_CODE_PLUGIN_CACHE_DIR: "plugin-cache" };
-      assert.deepEqual(
-        (yield* discoverClaudeSkills({ homePath: configDir }, workspace, environment)).map(
-          (skill) => skill.name,
-        ),
-        ["plugin:root-alias"],
-      );
+  itWithSymlinks(
+    "uses the native cache root, root-skill fallback and manifest path boundaries",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const workspace = yield* fs.makeTempDirectoryScoped({ prefix: "t3-claude-skills-" });
+        const configDir = path.join(workspace, "config");
+        const pluginsDir = path.join(workspace, "plugin-cache");
+        const plugin = path.join(pluginsDir, "installed");
+        const outside = path.join(workspace, "outside");
+        yield* writeSkill(pluginsDir, "installed", "---\nname: plugin:root.alias\n---\n");
+        yield* fs.makeDirectory(configDir);
+        yield* fs.writeFileString(
+          path.join(configDir, "settings.json"),
+          '{"enabledPlugins":{"plugin@shop":true}}',
+        );
+        yield* fs.writeFileString(
+          path.join(pluginsDir, "installed_plugins.json"),
+          JSON.stringify({ plugins: { "plugin@shop": [{ scope: "user", installPath: plugin }] } }),
+        );
+        const environment = { CLAUDE_CODE_PLUGIN_CACHE_DIR: "plugin-cache" };
+        assert.deepEqual(
+          (yield* discoverClaudeSkills({ homePath: configDir }, workspace, environment)).map(
+            (skill) => skill.name,
+          ),
+          ["plugin:root-alias"],
+        );
 
-      yield* writeSkill(path.join(plugin, "skills"), "plain", "# Plain");
-      yield* writeSkill(plugin, "custom", "---\nname: custom.review\n---\n");
-      yield* writeSkill(outside, "escaped", "# Outside");
-      yield* fs.symlink(outside, path.join(plugin, "escape"));
-      yield* fs.makeDirectory(path.join(plugin, ".claude-plugin"));
-      yield* fs.writeFileString(
-        path.join(plugin, ".claude-plugin", "plugin.json"),
-        '{"skills":["./custom","./escape","../../outside"]}',
-      );
-      assert.deepEqual(
-        (yield* discoverClaudeSkills({ homePath: configDir }, workspace, environment)).map(
-          (skill) => skill.name,
-        ),
-        ["plugin:custom-review", "plugin:plain"],
-      );
-    }),
+        yield* writeSkill(path.join(plugin, "skills"), "plain", "# Plain");
+        yield* writeSkill(plugin, "custom", "---\nname: custom.review\n---\n");
+        yield* writeSkill(outside, "escaped", "# Outside");
+        yield* fs.symlink(outside, path.join(plugin, "escape"));
+        yield* fs.makeDirectory(path.join(plugin, ".claude-plugin"));
+        yield* fs.writeFileString(
+          path.join(plugin, ".claude-plugin", "plugin.json"),
+          '{"skills":["./custom","./escape","../../outside"]}',
+        );
+        assert.deepEqual(
+          (yield* discoverClaudeSkills({ homePath: configDir }, workspace, environment)).map(
+            (skill) => skill.name,
+          ),
+          ["plugin:custom-review", "plugin:plain"],
+        );
+      }),
   );
 
   it.effect("discovers user and project skills with frontmatter metadata", () =>

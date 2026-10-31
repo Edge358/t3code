@@ -1,5 +1,6 @@
 import { type EnvironmentId, SourceControlProviderKind } from "@t3tools/contracts";
 import { runAtomCommand } from "@t3tools/client-runtime/state/runtime";
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import * as Schema from "effect/Schema";
 import { StarIcon } from "lucide-react";
 
@@ -72,6 +73,7 @@ async function alreadyStarred(environmentId: EnvironmentId) {
  * unless the environment's GitHub account already starred the repo.
  */
 export async function recordPromptSent(environmentId: EnvironmentId): Promise<void> {
+  if (!privateBuildPolicy.githubStarPrompt) return;
   if (shownThisSession) return;
   try {
     if (getLocalStorageItem(DISMISSED_KEY, Schema.Boolean)) return;

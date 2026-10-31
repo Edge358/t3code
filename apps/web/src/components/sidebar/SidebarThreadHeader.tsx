@@ -18,7 +18,6 @@ export interface SidebarThreadHeaderProps {
   projectScope: ReactNode;
   onNewProject: () => void;
   onNewThread: (event: ReactMouseEvent) => void;
-  newThreadDisabled: boolean;
   newThreadShortcutLabel: string | null | undefined;
   newThreadInProjectShortcutLabel: string | null | undefined;
   showNewThreadInProjectHint: boolean;
@@ -38,7 +37,6 @@ export function SidebarThreadHeader({
   projectScope,
   onNewProject,
   onNewThread,
-  newThreadDisabled,
   newThreadShortcutLabel,
   newThreadInProjectShortcutLabel,
   showNewThreadInProjectHint,
@@ -125,7 +123,6 @@ export function SidebarThreadHeader({
               newThreadLabel
             )
           }
-          disabled={newThreadDisabled}
           onClick={onNewThread}
         >
           <SquarePenIcon />

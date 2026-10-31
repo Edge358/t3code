@@ -26,22 +26,45 @@ const touchComposerFontSize = () =>
   });
 
 describe("applyAppearanceFontVariables", () => {
-  it("sizes the composer from the interface size until fonts are set separately", () => {
+  it("ties chat and typing size to code size while keeping menus and the interface independent", () => {
     const root = document.documentElement;
     const style = root.getAttribute("style");
     const preferences = {
       sans: "",
       code: "",
       composer: "",
-      sizeInterface: 20,
+      sizeInterface: 24,
       sizePrompt: 14,
-      sizeCode: 13,
+      sizeCode: 20,
+      sizeContextMenu: 18,
       smoothing: true,
     };
     try {
       applyAppearanceFontVariables(root, { ...preferences, separate: false });
-      expect(composerFontSize()).toBe("17.5px");
-      expect(touchComposerFontSize()).toBe("17.5px");
+      expect(composerFontSize()).toBe("20px");
+      expect(touchComposerFontSize()).toBe("20px");
+
+      applyAppearanceFontVariables(root, { ...preferences, sizeCode: 22, separate: false });
+      expect(composerFontSize()).toBe("22px");
+      expect(
+        renderedFontSize((probe) => {
+          probe.className = "chat-markdown text-chat-body";
+        }),
+      ).toBe("22px");
+      expect(getComputedStyle(root).fontSize).toBe("24px");
+      expect(
+        renderedFontSize((probe) => {
+          probe.style.fontSize = "var(--font-size-context-menu)";
+        }),
+      ).toBe("18px");
+
+      applyAppearanceFontVariables(root, { ...preferences, sizeContextMenu: 22, separate: false });
+      expect(composerFontSize()).toBe("20px");
+      expect(
+        renderedFontSize((probe) => {
+          probe.style.fontSize = "var(--font-size-context-menu)";
+        }),
+      ).toBe("22px");
 
       applyAppearanceFontVariables(root, { ...preferences, separate: true });
       expect(composerFontSize()).toBe("14px");

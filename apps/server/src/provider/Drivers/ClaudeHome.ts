@@ -6,6 +6,22 @@ import * as Schema from "effect/Schema";
 
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
+
+/** Apply after provider overrides; never mutate the parent process environment. */
+export function withClaudePrivacyEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (privateBuildPolicy.reporting) return environment;
+  return {
+    ...environment,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+    DISABLE_TELEMETRY: "1",
+    DISABLE_ERROR_REPORTING: "1",
+    DISABLE_AUTOUPDATER: "1",
+    DO_NOT_TRACK: "1",
+    CLAUDE_CODE_ENABLE_TELEMETRY: "0",
+    OTEL_SDK_DISABLED: "true",
+  };
+}
 
 const quotePath = Schema.encodeSync(Schema.fromJsonString(Schema.String));
 
@@ -31,7 +47,7 @@ export const makeClaudeEnvironment = Effect.fn("makeClaudeEnvironment")(function
   config: Pick<ClaudeSettings, "homePath">,
   baseEnv?: NodeJS.ProcessEnv,
 ): Effect.fn.Return<NodeJS.ProcessEnv, never, Path.Path> {
-  const resolvedBaseEnv = baseEnv ?? process.env;
+  const resolvedBaseEnv = withClaudePrivacyEnvironment(baseEnv ?? process.env);
   const homePath = config.homePath.trim();
   if (homePath.length === 0) return resolvedBaseEnv;
   const resolvedHomePath = yield* resolveClaudeHomePath(config);

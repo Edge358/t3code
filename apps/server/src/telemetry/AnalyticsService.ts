@@ -1,5 +1,6 @@
 // T3 ingest retains events and forwards to PostHog; UUIDs deduplicate retries there.
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import type { ClientOs } from "@t3tools/contracts";
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
@@ -115,6 +116,14 @@ function serverOsFromNodePlatform(platform: string): ClientOs {
 /** @public */
 /** @public */
 export const make = Effect.gen(function* () {
+  // Return before reading configuration, identities, or constructing a queue/timer.
+  if (!privateBuildPolicy.reporting) {
+    return AnalyticsService.of({
+      record: Effect.fn("AnalyticsService.record")(() => Effect.void),
+      recordOwners: Effect.fn("AnalyticsService.recordOwners")(() => Effect.void),
+      flush: Effect.void,
+    });
+  }
   const telemetryConfig = yield* TelemetryEnvConfig;
   const httpClient = yield* HttpClient.HttpClient;
   const serverConfig = yield* ServerConfig.ServerConfig;

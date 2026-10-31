@@ -5,8 +5,13 @@ need a separate branch and working directory.
 
 ## Start a thread
 
-On web and desktop, a new thread keeps the current project and carries your model
-and mode selections, unless the destination project has its own model default.
+On web and desktop, the top **New thread** button opens the project chooser,
+with **Add project / choose folder…** first, existing projects underneath,
+and **No project** last. To add an existing folder, choose **Add project / choose
+folder…**, then **Local folder**. The button beside a project starts directly
+in that project; Shift-clicking the top button starts in the current project.
+A new thread carries your model and mode selections, unless the destination
+project has its own model default.
 Its branch and workspace mode come from your configured defaults. To continue in
 an existing worktree, use **New thread in this worktree** from the branch toolbar.
 

@@ -2470,6 +2470,115 @@ it.layer(
   });
 
   describe("checkClaudeProviderStatus", () => {
+    it.effect("keeps a successful SDK usage response without another request", () =>
+      checkClaudeProviderStatus(
+        defaultClaudeSettings,
+        () =>
+          Effect.succeed({
+            subscriptionType: "max",
+            tokenSource: "claude.ai",
+            email: undefined,
+            apiKeySource: undefined,
+            apiProvider: "firstParty",
+            slashCommands: [],
+            usage: {
+              rate_limits_available: true,
+              rate_limits: { seven_day: { utilization: 12, resets_at: null } },
+            },
+          }),
+        {},
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        () => Effect.die("must not replace working SDK usage"),
+      ).pipe(
+        Effect.tap((status) =>
+          Effect.sync(() => expect(status.usageLimits?.windows[0]?.usedPercent).toBe(12)),
+        ),
+        Effect.provide(layerMockSpawner(() => ({ stdout: "2.1.316", stderr: "", code: 0 }))),
+        Effect.asVoid,
+      ),
+    );
+    it.effect(
+      "recovers missing subscription limits without changing the authenticated account",
+      () =>
+        Effect.gen(function* () {
+          const status = yield* checkClaudeProviderStatus(
+            defaultClaudeSettings,
+            claudeCapabilities({
+              subscriptionType: "max",
+              tokenSource: "claude.ai",
+              apiProvider: "firstParty",
+            }),
+            {},
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            () =>
+              Effect.succeed({
+                usage: {
+                  rate_limits_available: true,
+                  rate_limits: { seven_day: { utilization: 27, resets_at: null } },
+                },
+              }),
+          );
+          expect(status.status).toBe("ready");
+          expect(status.auth.status).toBe("authenticated");
+          expect(status.usageLimits?.windows[0]?.usedPercent).toBe(27);
+        }).pipe(
+          Effect.provide(layerMockSpawner(() => ({ stdout: "2.1.316", stderr: "", code: 0 }))),
+        ),
+    );
+
+    it.effect.each([
+      { apiProvider: "bedrock", tokenSource: "claude.ai", env: {} },
+      { apiProvider: "firstParty", tokenSource: "ANTHROPIC_AUTH_TOKEN", env: {} },
+      {
+        apiProvider: "firstParty",
+        tokenSource: "claude.ai",
+        env: { ANTHROPIC_BASE_URL: "https://proxy.example" },
+      },
+      { apiProvider: "firstParty", tokenSource: "CLAUDE_CODE_OAUTH_TOKEN", env: {} },
+    ])(
+      "does not substitute a local subscription for $apiProvider / $tokenSource",
+      ({ apiProvider, tokenSource, env }) =>
+        checkClaudeProviderStatus(
+          defaultClaudeSettings,
+          claudeCapabilities({ subscriptionType: "max", apiProvider, tokenSource }),
+          env,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          () => Effect.die("must not look up local subscription"),
+        ).pipe(
+          Effect.provide(layerMockSpawner(() => ({ stdout: "2.1.316", stderr: "", code: 0 }))),
+          Effect.asVoid,
+        ),
+    );
+
+    it.effect("keeps Claude usable and exposes a failed limits read", () =>
+      Effect.gen(function* () {
+        const status = yield* checkClaudeProviderStatus(
+          defaultClaudeSettings,
+          claudeCapabilities({ subscriptionType: "max", tokenSource: "claude.ai" }),
+          {},
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          () => Effect.succeed({ message: "Claude limits request timed out. Try again." }),
+        );
+        expect(status.status).toBe("ready");
+        expect(status.usageLimits?.unavailable).toEqual({
+          reason: "probeFailed",
+          message: "Claude limits request timed out. Try again.",
+        });
+      }).pipe(Effect.provide(layerMockSpawner(() => ({ stdout: "2.1.316", stderr: "", code: 0 })))),
+    );
+
     it.effect("reports a logged-out CLI as unauthenticated", () =>
       Effect.gen(function* () {
         const status = yield* checkClaudeProviderStatus(
