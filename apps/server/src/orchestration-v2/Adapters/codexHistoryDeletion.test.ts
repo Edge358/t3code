@@ -37,9 +37,16 @@ it.effect.each(["root", "archived-child", "none"] as const)(
     }),
 );
 
-it.effect.each(["neighbor", "grandchild"] as const)(
-  "falls back to parent links when the installed Codex ignores the ancestor filter (%s protected)",
-  (protectedId) =>
+it.effect.each(
+  (["neighbor", "grandchild"] as const).flatMap((protectedId) =>
+    (["together", "archived-child", "archived-grandchild"] as const).map((archiveLayout) => ({
+      protectedId,
+      archiveLayout,
+    })),
+  ),
+)(
+  "falls back to parent links across $archiveLayout when the ancestor filter is ignored ($protectedId protected)",
+  ({ protectedId, archiveLayout }) =>
     Effect.gen(function* () {
       const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
       const client = {
@@ -48,14 +55,23 @@ it.effect.each(["neighbor", "grandchild"] as const)(
             Effect.sync(() => {
               calls.push({ method, params });
               if (method === "thread/delete") return {};
-              // The whole history comes back whatever the filter says.
+              // The ancestor filter is ignored, but archived still partitions the history.
+              const items = [
+                { id: "root", parentThreadId: null, archived: false },
+                { id: "neighbor", parentThreadId: null, archived: false },
+                {
+                  id: "child",
+                  parentThreadId: "root",
+                  archived: archiveLayout === "archived-child",
+                },
+                {
+                  id: "grandchild",
+                  parentThreadId: "child",
+                  archived: archiveLayout === "archived-grandchild",
+                },
+              ].filter((item) => item.archived === params.archived);
               return {
-                data: [
-                  { id: "root", parentThreadId: null },
-                  { id: "neighbor", parentThreadId: null },
-                  { id: "child", parentThreadId: "root" },
-                  { id: "grandchild", parentThreadId: "child" },
-                ],
+                data: items.slice(0, Number(params.limit)),
                 nextCursor: null,
               };
             }),

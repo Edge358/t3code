@@ -37,6 +37,10 @@ it.effect.each([
   "side-chat",
   "side-chat-partial",
   "side-chat-double-delete",
+  "side-chat-independent",
+  "side-chat-independent-failed",
+  "side-chat-independent-pending",
+  "side-chat-independent-no-parent-history",
   "detached-session",
 ] as const)(
   "persists a mixed-provider deletion and handles %s without losing retry references",
@@ -44,11 +48,12 @@ it.effect.each([
     const calls: string[] = [];
     const liveSessionId = ProviderSessionId.make("detached-writer-session");
     let writerOpen = false;
-    let failClaude = scenario === "partial" || scenario === "side-chat-partial";
-    const hasSideChat =
-      scenario === "side-chat" ||
+    let failClaude =
+      scenario === "partial" ||
       scenario === "side-chat-partial" ||
-      scenario === "side-chat-double-delete";
+      scenario === "side-chat-independent-failed";
+    const hasSideChat = scenario.startsWith("side-chat");
+    const independentChild = scenario.startsWith("side-chat-independent");
     const adapters = ["codex", "claudeAgent", "other"].map((name) => {
       const driver = ProviderDriverKind.make(name);
       const instanceId = ProviderInstanceId.make(name);
@@ -98,7 +103,11 @@ it.effect.each([
                       driver,
                       detail: "Native history still has an active writer.",
                     });
-                  if (name === "claudeAgent" && failClaude)
+                  if (
+                    name === "claudeAgent" &&
+                    failClaude &&
+                    (scenario !== "side-chat-independent-failed" || id === "child-history")
+                  )
                     return yield* new ProviderAdapter.ProviderAdapterProtocolError({
                       driver,
                       detail: "Synthetic provider failure.",
@@ -200,9 +209,11 @@ it.effect.each([
           ],
         });
       });
-      yield* addNative(target, "codex-first", "codex");
-      yield* addNative(target, "claude", "claudeAgent");
-      yield* addNative(target, "codex-return", "codex");
+      if (scenario !== "side-chat-independent-no-parent-history") {
+        yield* addNative(target, "codex-first", "codex");
+        yield* addNative(target, "claude", "claudeAgent");
+        yield* addNative(target, "codex-return", "codex");
+      }
       yield* addNative(
         neighbor,
         "neighbor-history",
@@ -270,6 +281,18 @@ it.effect.each([
         assert.isTrue(writerOpen);
       }
       assert.deepEqual(calls, []);
+      if (independentChild) {
+        yield* orchestrator.dispatch({
+          type: "thread.delete",
+          commandId: CommandId.make("delete:child-first"),
+          threadId: childId,
+        });
+        if (scenario === "side-chat-independent-pending") {
+          const claimed = yield* outbox.claimNext({ workerId: "child-worker" });
+          assert.isTrue(Option.isSome(claimed));
+          if (Option.isSome(claimed)) assert.equal(claimed.value.threadId, childId);
+        }
+      }
       yield* orchestrator.dispatch({
         type: "thread.delete",
         commandId: CommandId.make("delete:first"),
@@ -319,7 +342,11 @@ it.effect.each([
       const first = yield* projections.getThread(target);
       assert.equal(
         first.historyDeletion?.status,
-        scenario === "partial" || scenario === "shared" || scenario === "side-chat-partial"
+        scenario === "partial" ||
+          scenario === "shared" ||
+          scenario === "side-chat-partial" ||
+          scenario === "side-chat-independent-failed" ||
+          scenario === "side-chat-independent-pending"
           ? "failed"
           : "complete",
       );
@@ -327,14 +354,37 @@ it.effect.each([
       assert.isNull((yield* projections.getThread(neighbor)).deletedAt);
       assert.notInclude(calls, "unrelated");
       if (scenario === "detached-session") assert.isFalse(writerOpen);
-      if (scenario === "side-chat" || scenario === "side-chat-double-delete") {
+      if (
+        scenario === "side-chat" ||
+        scenario === "side-chat-double-delete" ||
+        (independentChild && !failClaude && scenario !== "side-chat-independent-pending")
+      ) {
         assert.isNotNull((yield* projections.getThread(childId)).deletedAt);
         assert.equal(calls[0], "child-history");
         yield* orchestrator.awaitThreadDeletion(target);
         yield* orchestrator.awaitThreadDeletion(childId);
+        assert.equal(calls.filter((id) => id === "child-history").length, 1);
       }
 
-      if (scenario === "side-chat-partial") {
+      if (scenario === "side-chat-independent-pending") {
+        assert.isNull(first.deletedAt);
+        assert.equal((yield* projections.getThread(childId)).historyDeletion?.status, "pending");
+        assert.deepEqual(calls, []);
+        assert.equal((yield* outbox.reconcileAfterProcessLoss).requeued, 1);
+        yield* worker.drain();
+        yield* orchestrator.awaitThreadDeletion(childId);
+        assert.isNull((yield* projections.getThread(target)).deletedAt);
+        yield* orchestrator.dispatch({
+          type: "thread.delete",
+          commandId: CommandId.make("delete:after-child-finished"),
+          threadId: target,
+        });
+        yield* worker.drain();
+        yield* orchestrator.awaitThreadDeletion(target);
+        assert.sameMembers(calls, ["child-history", "codex-first", "claude", "codex-return"]);
+      }
+
+      if (scenario === "side-chat-partial" || scenario === "side-chat-independent-failed") {
         assert.isNull(first.deletedAt);
         assert.isNull((yield* projections.getThread(childId)).deletedAt);
         assert.deepEqual(calls, ["child-history"]);

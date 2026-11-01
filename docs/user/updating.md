@@ -1,5 +1,13 @@
 # Updating T3 Code
 
+> **Custom Windows build:** desktop app updates are disabled by fixed policy.
+> Obtain a reviewed custom installer from the maintainer for an app upgrade;
+> upstream update commands do not preserve this variant's changes. Provider
+> update/model-catalog checks and **Continue threads after restarts** default to
+> off, though saved preferences can override those defaults. Enable provider
+> update checks in **Settings > Maintenance** before refreshing for new models.
+> The app/server update and remote workflows below describe upstream behavior.
+
 The app you use and the server running your agents can be on different machines.
 When a server is behind your web or desktop app, the update button at the bottom
 of the sidebar and **Settings → Environments** offer to update it.

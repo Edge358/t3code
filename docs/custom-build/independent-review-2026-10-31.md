@@ -1,5 +1,12 @@
 # Independent review of the private Windows build (2026-10-31)
 
+> **2026-11-01 pre-commit checkpoint:** findings and work orders below preserve the original
+> review and its fix passes, not a list of all currently open defects. The overnight
+> fixes landed in `838090cc`. Later working-tree fixes protect Codex descendants
+> across archive states and make parent deletion depend on independently deleting
+> side chats. Include `git diff` when reviewing the current implementation.
+> Current validation limits are in [Custom changes](../../CUSTOM_CHANGES.md#6-verification-approach).
+
 This is a second-opinion review of the two local commits on `edge358-custom-build`
 (91a91457 and 0e88eb39, on top of upstream v0.1.6, tag `private-base-v0.1.6`), written
 as a brief for a fresh agent. The three Status sections below record what was then
@@ -139,13 +146,16 @@ they found, and what was done:
 
 ## For the next reviewer
 
-The fixes described in the three Status sections were committed as one commit on
-`edge358-custom-build`, directly after 0e88eb39. To see exactly what changed:
+The fixes described in the three Status sections were committed as `838090cc` on
+`edge358-custom-build`, directly after `0e88eb39`. Review the subsequent uncommitted
+changes as well:
 
 ```
 git log --oneline private-base-v0.1.6..edge358-custom-build
 git diff 0e88eb39 HEAD --stat
 git diff 0e88eb39 HEAD
+git status --short
+git diff
 ```
 
 Where the risk is, in order:
@@ -180,7 +190,7 @@ build. `vp run check:changed` does not run on this machine because it spawns a g
 
 ## Scope and how this review was done
 
-- Repository: `E:\Projects\GitHub\t3code_v0_1_6`. Upstream base is T3 Code v0.1.6,
+- Repository: this checkout. Upstream base is T3 Code v0.1.6,
   commit `2359643c`. Local commits: `91a91457` (privacy, readability, speech,
   Claude usage fallback) and `0e88eb39` (synchronized history deletion, build
   consolidation). Together: 147 files, about 4,650 insertions.
@@ -191,13 +201,17 @@ build. `vp run check:changed` does not run on this machine because it spawns a g
   Claims that mattered were spot-checked against the vendored Codex protocol schema
   and the installed `codex.exe`.
 - Not done: no full test suite, no typecheck, no packaging, no installer run, no
-  network capture. The existing documents already say those are open.
+  network capture during the initial review. Later fix-pass and installation checks
+  are separate evidence; see the current validation limits linked above.
 
 Severity scale: **Blocker** (fix before relying on the feature), **Should fix**
 (real defect or risk, not urgent), **Consider** (design choice worth revisiting),
 **Tidy** (style, docs, hygiene).
 
 ## Summary verdict
+
+This verdict describes the original pre-fix state. The status sections above
+supersede its defect list; unresolved items are identified under For the next reviewer.
 
 The work is unusually well documented and the overall architecture choices are
 sound. The fixed `privateBuildPolicy` module is a clean way to compile the privacy
@@ -430,8 +444,7 @@ that material. Replace the README checkpoint paragraph with a pointer.
   upstream.
 - Tag the base: `git tag private-base-v0.1.6 2359643c`. Every rebase and every
   "what did we change" diff then has a stable anchor.
-- Commits are authored as `Edge358 <58263644+Edge358@users.noreply.github.com>`. Confirm that is the intended
-  identity for this machine.
+- Confirm the configured commit author is the intended identity for this machine.
 - Two commits hold 147 files. Do not rewrite them now, but future work should land
   as one change per commit (the pricing-policy change in the deletion commit is the
   example).
@@ -458,7 +471,8 @@ run the private-policy tests plus `vp run check:changed`.
 
 ## Work order
 
-Suggested order for a fresh agent. Each item names its finding.
+Historical suggested order before the fix passes. Each item names its finding;
+use the current status above before taking any action.
 
 1. A3, then A2, then A1 (deletion safety). Add the three missing tests named in
    section A. Run `vp test run apps/server/src/orchestration-v2/HistoryDeletionService.test.ts`

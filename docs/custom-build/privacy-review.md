@@ -1,6 +1,7 @@
 # Custom build: security and privacy review ledger
 
-Checkpoint: 2026-10-31. Base: T3 Code `v0.1.6`, commit
+Source/status reconciliation: 2026-11-01. Historical runtime evidence is dated below.
+Base: T3 Code `v0.1.6`, commit
 `2359643cffa6ba9ee84d6f2694b935de54a8013e`. Current build and validation: [custom changes](../../CUSTOM_CHANGES.md).
 See [the complete change summary](../../CUSTOM_CHANGES.md) for appearance,
 navigation, defaults, speech, validation, and possible upstream proposals.
@@ -69,9 +70,16 @@ repeated checks. Required provider connections remain possible.
 Claude children receive `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`,
 `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `DISABLE_AUTOUPDATER=1`, and
 `CLAUDE_CODE_ENABLE_TELEMETRY=0`. Generic keys such as `DO_NOT_TRACK` and
-`OTEL_SDK_DISABLED` are deliberately not set: the agent's own tool processes inherit
-this environment, and those keys would change the user's dev servers and tests.
+`OTEL_SDK_DISABLED` are not added by the Claude helper: the agent's tool processes
+inherit this environment, and those keys can change the user's dev servers and tests.
+Inherited values are not removed; the development launcher itself sets
+`OTEL_SDK_DISABLED=true`, so its child processes can still inherit that restriction.
 These are child-process opt-outs, not an outbound network enforcement layer.
+
+Speech URL validation refuses public IP literals, credentials and fragments, but
+allows hostnames without resolving and classifying their addresses. A hostname
+can therefore reach a public service. The saved address is editable through the
+renderer; the IPC destination lookup is not a local-network security boundary.
 
 ## Runtime evidence and changes in conclusions
 
@@ -96,8 +104,8 @@ These are child-process opt-outs, not an outbound network enforcement layer.
    private.2's different startup behavior. It must not be presented as proof that
    private.13 startup has no external requests. Periodic-check gates and Claude
    opt-outs remain in source.
-5. **private.13:** accumulated-change tests and UI checks passed as recorded in
-   the change summary. No equivalent new comprehensive network capture was made.
+5. **private.13:** accumulated-change tests and UI checks passed as recorded
+   privately. No equivalent new comprehensive network capture was made.
    A later user report showed Claude Limits failing to load; the targeted
    diagnosis below established a compatibility problem with the broad CLI opt-out.
 6. **private.14:** a narrow first-party subscription usage fallback restored
@@ -251,8 +259,10 @@ authorized disposable histories; retained histories were checked independently.
   not established; no fix is claimed here. The historical advisory search is a
   dated observation, not an up-to-date vulnerability clearance.
 - Comprehensive packaged external-media/link tests, all provider/tool/network
-  combinations, fresh installer behavior, laptop behavior and remote/WSL speech
-  remain unverified.
+  combinations, other-machine installation, laptop behavior and remote/WSL speech
+  remain unverified. The rebuilt desktop installer and startup were checked, and
+  the owner accepted its appearance/setup; real-provider conversations/deletion
+  and speech playback on that installed artifact remain unverified.
 - Synchronized local Codex/Claude deletion passed focused tests and manual
   Windows checks, including a partial-failure retry. Other provider histories
   remain unsupported. Archive and project removal preserve provider histories.

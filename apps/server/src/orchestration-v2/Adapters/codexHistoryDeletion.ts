@@ -117,17 +117,22 @@ export const deleteCodexHistory = Effect.fn("codexHistoryDeletion.deleteCodexHis
   const protectedIds = new Set(protectedNativeIds);
   if (protectedIds.has(threadId)) return "retained" as const;
   // Native deletion cascades, including archived children omitted by ordinary listings.
+  const honored = (yield* Effect.forEach([false, true], (archived) =>
+    honorsAncestorFilter(client, archived),
+  )).every(Boolean);
+  const history: HistoryItem[] = [];
   for (const archived of [false, true]) {
-    const honored = yield* honorsAncestorFilter(client, archived);
     const items = yield* listAll(
       client,
       honored ? { archived, ancestorThreadId: threadId } : { archived },
     );
-    const descendants = honored
-      ? new Set(items.map((item) => item.id))
-      : descendantsOf(threadId, items);
-    for (const id of descendants) if (protectedIds.has(id)) return "retained" as const;
+    if (honored && items.some((item) => protectedIds.has(item.id))) return "retained" as const;
+    history.push(...items);
   }
+  // A parent chain can cross the archive boundary more than once.
+  if (!honored)
+    for (const id of descendantsOf(threadId, history))
+      if (protectedIds.has(id)) return "retained" as const;
   return yield* client.raw.request("thread/delete", { threadId }).pipe(
     Effect.as("deleted" as const),
     Effect.catchTags({

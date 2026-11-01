@@ -1,5 +1,11 @@
 # Install T3 Code
 
+> **Custom Windows build:** use [Start Here](../../START_HERE.md) and the supplied
+> custom installer. The downloads and package-manager commands below install
+> upstream T3 Code. This variant disables T3 cloud/relay and desktop remote exposure;
+> its [installation and data-location guide](../../CUSTOM_CHANGES.md#installing-on-this-or-another-windows-machine)
+> explains the separate installed and development profiles.
+
 T3 Code runs coding agents on your computer and lets you control them from its
 desktop, web, or mobile app. Set up the machine where the agents will work first.
 

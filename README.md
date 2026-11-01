@@ -1,5 +1,8 @@
 # T3 Code
 
+**New to T3 or PowerShell? [Start Here: Windows Setup](START_HERE.md)** walks through
+installing Codex and Claude, signing in, and opening T3. No coding experience needed.
+
 > **Custom Windows variant:** This checkout contains local changes based on
 > upstream v0.1.6. Start with [Custom changes and validation](CUSTOM_CHANGES.md)
 > and the [security/privacy review](docs/custom-build/privacy-review.md).
@@ -10,9 +13,10 @@
 
 ## Start here: this custom build
 
-The app and its retained profile live inside this checkout under the Git-ignored
-`.local` folder. Which build is current, what was verified, and what comes next
-are recorded in the private build record, not here.
+For everyday use, open the installed T3 Code shortcut. The repository's
+`Start Private T3.cmd` opens a separate development copy and retained profile
+under the Git-ignored `.local` folder. Installing the app does not import that
+profile. See [installation and data locations](CUSTOM_CHANGES.md#installing-on-this-or-another-windows-machine).
 
 Use this README as the project map. The linked documents contain the details;
 update those documents rather than copying their contents here.
@@ -21,7 +25,7 @@ update those documents rather than copying their contents here.
 | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Open the private app; find or clean up its files                    | [Launch, folders, and cleanup](CUSTOM_CHANGES.md#launch-folders-and-cleanup)           |
 | What changed, why, and which defaults changed                       | [Custom changes](CUSTOM_CHANGES.md)                                                    |
-| Code review, tests and known limitations                            | [Validation record](CUSTOM_CHANGES.md#6-review-fixes-and-validation-record)            |
+| Code review, tests and known limitations                            | [Verification approach](CUSTOM_CHANGES.md#6-verification-approach)                     |
 | Security/privacy findings and protections                           | [Privacy review](docs/custom-build/privacy-review.md)                                  |
 | Independent code review, fixes applied, brief for the next reviewer | [Independent review](docs/custom-build/independent-review-2026-10-31.md)               |
 | How to maintain and build this variant                              | [Build guidance](CUSTOM_CHANGES.md#9-maintaining-and-building-this-variant)            |

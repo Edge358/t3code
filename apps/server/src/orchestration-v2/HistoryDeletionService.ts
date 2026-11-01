@@ -296,7 +296,13 @@ export const layer = Layer.effect(
           for (const threadId of group) {
             const thread = yield* projections.getThread(threadId);
             const state = thread.historyDeletion;
-            if (state === undefined || state.status === "complete") continue;
+            // Another request owns an independently deleting child; the parent still checks it below.
+            if (
+              state === undefined ||
+              state.status === "complete" ||
+              state.requestId !== effect.commandId
+            )
+              continue;
             if (threadId === effect.threadId) {
               const children = yield* Effect.forEach(
                 group.filter((id) => id !== threadId),

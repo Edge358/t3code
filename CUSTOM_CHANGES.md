@@ -1,10 +1,10 @@
 # Custom Windows build: changes and rationale
 
 Upstream base: T3 Code `v0.1.6`, commit `2359643cffa6ba9ee84d6f2694b935de54a8013e`,
-tagged locally as `private-base-v0.1.6`. Build numbers, test runs, and acceptance
-results live in the private build record under `docs/local`; the privacy review keeps
-its own dated runtime evidence. This document describes how the variant behaves now
-and why.
+tagged locally as `private-base-v0.1.6`. This document describes how the variant
+behaves now and why. The verification section states the public evidence limits;
+exact artifact hashes and machine-specific records live under ignored `docs/local`
+and `.local`. The privacy review keeps its own dated runtime evidence.
 
 T3 Code is the upstream project by T3 Tools Inc. This document describes a locally
 modified build, not an official release or an upstream-endorsed product. The
@@ -161,9 +161,11 @@ playback belong to the external service.
 
 The desktop main process reads the saved address, validates the requesting main
 renderer, permits HTTP/HTTPS without URL credentials or fragments, rejects
-redirects, and uses a five-second delivery timeout. The app does not automatically
-retry uncertain delivery. The IPC payload has text/session length limits. The
-renderer cannot pass an arbitrary destination in the speech request.
+redirects, and uses a five-second delivery timeout. Public IP literals are refused,
+but hostnames are allowed without checking their resolved addresses; this is not
+a guarantee that speech stays on the local network. The app does not automatically
+retry uncertain delivery. The IPC payload has text/session length limits and no
+destination field, but the renderer can change the saved speech address.
 
 Speech selects completed main assistant messages for that run, excluding user,
 tool, child-agent, streaming, and notification messages. Previously completed
@@ -215,19 +217,18 @@ not remove upstream credit or claim authorship of T3 Code.
 
 ## 6. Verification approach
 
-Every behavior change ships with focused tests beside the code it touches, and
-each build is checked the same way before packaging:
+Validate future changes with checks appropriate to the affected behavior:
 
 - Focused suites for the changed areas, run with `pnpm exec vp test run <files>`.
   The deletion, provider-session, Claude environment, usage fallback, speech, and
   private-policy suites are the ones most often affected.
-- `tsc --noEmit` for every package whose source changed (`apps/server`,
-  `apps/web`, `apps/desktop`, `apps/mobile`, `packages/contracts`).
+- The affected packages' established typecheck scripts, including dependents when
+  shared contracts change.
 - `pnpm exec vp fmt --check` and `pnpm exec vp lint` on the changed files.
-- A Windows x64 package, an unpacked launch against the retained profile, and a
-  local backend health check.
+- For runtime changes, a Windows x64 package and a launch/health check of the
+  artifact being accepted. Documentation-only corrections do not require rebuilding.
 
-`vp run check:changed` is the upstream way to run all of this at once, but it
+`vp run check:changed` runs upstream source checks, not packaging or runtime acceptance. It
 spawns a global `vp` binary that is not installed on the development machine; run
 the component checks by hand or install `vp` per the README.
 
@@ -235,10 +236,17 @@ Two desktop settings tests create symlink fixtures and skip when Windows cannot
 create links without Developer Mode. They use the repository's existing
 capability probe; the skipped cases are not counted as verified on this host.
 
-Build numbers, per-build test counts, manual acceptance results, network
-captures, and the history of fixes between builds are kept in the private build
-record under `docs/local`, which is ignored by Git. Counts from overlapping runs
-are never added together. An independent code review of the whole variant, with
+The current Windows artifact has passed focused deletion regressions, server
+typechecking, packaging checks, per-user installation, installed-payload hash
+comparison, and startup health checks. The owner accepted its appearance and
+personal setup. Real-provider conversations/deletion and speech playback have
+not been verified on that rebuilt installed artifact; earlier successful checks
+belong to earlier builds. Other-machine installation remains untested.
+
+Exact build identities, per-build results, network captures, and the history of
+fixes are kept in the private build record under `docs/local`, which is ignored
+by Git. Counts from overlapping runs are never added together. An independent
+code review of the whole variant, with
 its findings and the fixes applied, is in
 [docs/custom-build/independent-review-2026-10-31.md](docs/custom-build/independent-review-2026-10-31.md).
 
@@ -260,9 +268,12 @@ app-only cleanup.
 
 Codex deletion first probes whether the installed Codex honors the
 `ancestorThreadId` listing filter, which newer releases support but the vendored
-protocol schema does not declare. When the filter is ignored, the history is listed
-unfiltered and descendants are found by following each item's `parentThreadId`, so a
-protected child is still kept on an older Codex. Claude deletion works on the real
+protocol schema does not declare. When either archive-state probe finds that the
+filter is ignored, both active and archived histories are listed unfiltered and
+combined before following `parentThreadId` links. This protects descendants whose
+parent chains cross archive states. Parent deletion also waits for independently
+deleting side chats; a pending or failed child prevents the parent from disappearing.
+Claude deletion works on the real
 path of the Claude home so junctions and redirected profiles behave normally, and
 still refuses to follow links inside the history folders.
 
@@ -307,23 +318,25 @@ deletion. No personal projects directory is hard-coded.
 
 Before any eventual public release, choose its identity and version, preserve
 upstream notices, review the selected files, and document the support scope.
-Fresh installation, laptop/DPI testing, and network-hosted speech remain
-unverified. App auto-updates are disabled, so future upstream changes require
+Other-machine installation, laptop/DPI testing, and network-hosted speech remain
+unverified. The installed artifact's remaining acceptance limits are in
+[section 6](#6-verification-approach). App auto-updates are disabled, so future upstream changes require
 deliberate review and rebuilding. The private record, account details, raw
 network traces, real conversation screenshots, speech adapters, and the test
 profile are not part of this shareable document.
 
-Open review items that were deliberately left alone are listed at the end of the
-[independent review](docs/custom-build/independent-review-2026-10-31.md); they are
-taste decisions (chat heading sizes, native context menus) rather than defects.
+Open review items are listed in the [independent review](docs/custom-build/independent-review-2026-10-31.md#for-the-next-reviewer).
+They include the sticky incomplete-deletion label and the sidebar's hover-only
+deletion indicator, as well as deliberate choices about heading sizes and menus.
 
 ## 9. Maintaining and building this variant
 
 ### Launch, folders, and cleanup
 
-From the repository folder, double-click [Start Private T3.cmd](Start%20Private%20T3.cmd).
-This opens the private app with its saved conversations and settings. No installer
-is needed for this development copy.
+For the installed app, use its Start Menu or desktop shortcut. To open the
+development copy, double-click [Start Private T3.cmd](Start%20Private%20T3.cmd)
+in the repository. It uses the saved development conversations and settings;
+no installer is needed for that copy.
 
 All paths below are relative to the repository folder:
 
@@ -349,11 +362,12 @@ this variant, so `%APPDATA%` stays normal for the provider CLIs it starts.
 ### Installing on this or another Windows machine
 
 Each Windows build produces `T3-Code-<version>-x64.exe` beside its `win-unpacked`
-folder under `.local/builds`. Copy only that EXE for installation; the blockmap
+folder, by default under `.local/builds/current`. Copy only that EXE for installation; the blockmap
 and build metadata are not needed. The installer is unsigned. It installs
 supporting files, so the unpacked app EXE alone is not a portable single-file
-application. Which build is current and whether its installer has been run are
-recorded in the private build record.
+application. Use the custom installer supplied for this variant; upstream package
+managers and downloads install upstream T3 Code. The maintainer records exact
+artifact hashes privately, because a reused version number cannot identify a rebuild.
 
 Launch the installed shortcut for acceptance; `Start Private T3.cmd` opens the
 separate development copy and saved test profile instead. Pass
@@ -368,12 +382,10 @@ Each machine needs its own Codex/Claude installation and sign-in; existing worki
 installations/sign-ins can be reused. The installer does not transfer accounts,
 conversations, settings, or this machine's custom speech-hook changes.
 
-#### Matching the saved test profile after installation
+#### Optional readability and speech preferences
 
-Checked on 2026-11-01 by decoding the saved test profile against this build's
-schema defaults. Every saved preference equals the build's default except these
-four. Set them in Settings after the first launch and the installed app matches
-the development copy.
+The following preferences reproduce the reviewer's text sizes and speech setup.
+They do not transfer conversations, project folders, accounts, or all settings.
 
 | Setting                                           | Fresh install | Test profile                |
 | ------------------------------------------------- | ------------- | --------------------------- |
@@ -387,11 +399,8 @@ Everything in section 3 (project-organized sidebar, auto-settle off, cleanup aft
 30 days, update checks off, 18px right-click menus) is already the default and
 needs no change. Codex/Claude sign-in and project folders are per machine.
 
-The shortcut: before the first launch, copy `client-settings.json` from the test
-profile's `t3-data\userdata` folder into `%USERPROFILE%\.t3\userdata\`. That also
-carries the onboarding-completed marker, so the welcome flow is skipped. Server
-settings (`settings.json`) need no copy; the test profile's values there are the
-defaults.
+Set these values in Settings. Copying an entire settings file also carries other
+preferences and the onboarding marker, so it is not part of normal installation.
 
 ### Building and maintaining the source
 

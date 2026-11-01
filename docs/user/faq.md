@@ -69,6 +69,11 @@ No. T3 Code is a serious developer tool. Locally runnable models are not capable
 
 ## Does my code go to T3 servers?
 
+**In this custom Windows build**, T3 reporting and cloud/relay services are disabled.
+Provider conversations still contact the chosen provider, and enabled speech sends
+reply text to the configured service. See the [privacy review](../custom-build/privacy-review.md).
+The following describes upstream T3 Code:
+
 No. Your code and prompts go from your machine to your provider (Anthropic, OpenAI, etc.), not to us. With T3 Connect, traffic rides a Cloudflare tunnel (`cloudflared` on your machine). Our relay sets up the link. It does not proxy your HTTP or WebSocket sessions. T3 Code does send basic product usage events (provider, model, token totals, that kind of thing). No prompts, no file contents. That is the same on Tailscale, LAN, or T3 Connect. Set `T3CODE_TELEMETRY_ENABLED=false` if you want it off. [Product usage data](./telemetry.md)
 
 ## Worktrees are eating my disk. How do I clean them up?

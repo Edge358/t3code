@@ -13011,8 +13011,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           isDeletionInFlight(threadId).pipe(Effect.map((inFlight) => (inFlight ? [] : [threadId]))),
         )).flat();
         const groupHasNativeHistory =
-          activeSideChatIds.length > 0 &&
-          (yield* Effect.forEach([...activeSideChatIds, command.threadId], (threadId) =>
+          sideChatIds.length > 0 &&
+          (yield* Effect.forEach([...sideChatIds, command.threadId], (threadId) =>
             projectionStore
               .getThreadRecords(threadId, ["providerThreads"])
               .pipe(mapDispatchError(command)),
@@ -13089,7 +13089,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                         ...effect,
                         request: {
                           ...effect.request,
-                          threadIds: [...activeSideChatIds, command.threadId],
+                          // Independently deleting children still gate the parent's completion.
+                          threadIds: [...sideChatIds, command.threadId],
                         },
                       },
                     ]
