@@ -69,6 +69,15 @@ export class ThreadArchiveBlockedError extends Schema.TaggedError<ThreadArchiveB
   }
 }
 
+class ThreadDeleteConfirmationUnavailableError extends Schema.TaggedError<ThreadDeleteConfirmationUnavailableError>()(
+  "ThreadDeleteConfirmationUnavailableError",
+  {},
+) {
+  override get message(): string {
+    return "The delete confirmation could not be shown. Reopen the app and try again.";
+  }
+}
+
 export class ThreadSettlementUnsupportedError extends Schema.TaggedError<ThreadSettlementUnsupportedError>()(
   "ThreadSettlementUnsupportedError",
   {
@@ -319,7 +328,6 @@ export function useThreadActions() {
     reportFailure: false,
   });
   const sidebarThreadSortOrder = useClientSettings((settings) => settings.sidebarThreadSortOrder);
-  const confirmThreadDelete = useClientSettings((settings) => settings.confirmThreadDelete);
   const confirmThreadUnpin = useClientSettings((settings) => settings.confirmThreadUnpin);
   const clearComposerDraftForThread = useComposerDraftStore((store) => store.clearDraftThread);
   const clearProjectDraftThreadById = useComposerDraftStore(
@@ -916,23 +924,24 @@ export function useThreadActions() {
     const localApi = readLocalApi();
     const resolved = resolveThreadTarget(target);
 
-    if (confirmThreadDelete && localApi) {
-      const title = resolved?.thread.title ?? "this thread";
-      const confirmationResult = await settlePromise(() =>
-        localApi.dialogs.confirm(
-          [
-            `Delete thread "${title}"?`,
-            "This permanently clears conversation history for this thread.",
-          ].join("\n"),
-          { variant: "destructive" },
-        ),
-      );
-      if (confirmationResult._tag === "Failure") {
-        return confirmationResult;
-      }
-      if (!confirmationResult.value) {
-        return AsyncResult.success(undefined);
-      }
+    if (!localApi) {
+      return AsyncResult.failure(Cause.fail(new ThreadDeleteConfirmationUnavailableError({})));
+    }
+    const title = resolved?.thread.title ?? "this thread";
+    const confirmationResult = await settlePromise(() =>
+      localApi.dialogs.confirm(
+        [
+          `Delete thread "${title}"?`,
+          "This deletes the T3 conversation and all linked local Codex and Claude histories. Histories from other providers remain. Project files and cloud conversations are not deleted.",
+        ].join("\n"),
+        { variant: "destructive" },
+      ),
+    );
+    if (confirmationResult._tag === "Failure") {
+      return confirmationResult;
+    }
+    if (!confirmationResult.value) {
+      return AsyncResult.success(undefined);
     }
 
     return deleteThread(target);

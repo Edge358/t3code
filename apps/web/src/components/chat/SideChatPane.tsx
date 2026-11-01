@@ -15,7 +15,6 @@ import { Trash2Icon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ComposerHandleContext } from "../../composerHandleContext";
-import { useClientSettings } from "../../hooks/useSettings";
 import type { SideChatParentPanel } from "../../lib/sideChatPane";
 import { readLocalApi } from "../../localApi";
 import { hostRightPanel, useRightPanelStore } from "../../rightPanelStore";
@@ -51,7 +50,7 @@ export default function SideChatPane(props: {
   const canOperate = useEnvironmentScope(parentRef.environmentId, AuthOrchestrationOperateScope);
   const mergeBack = useAtomCommand(threadEnvironment.mergeBack, { reportFailure: false });
   const deleteThread = useAtomCommand(threadEnvironment.delete, { reportFailure: false });
-  const confirmThreadDelete = useClientSettings((settings) => settings.confirmThreadDelete);
+  const confirmThreadDelete = true;
   const [bringingBack, setBringingBack] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const mergeRun = projection ? resolveLatestMergeBackRun(projection) : null;
@@ -97,7 +96,7 @@ export default function SideChatPane(props: {
         api.dialogs.confirm(
           [
             `Delete side chat "${shell.title}"?`,
-            "This permanently clears its conversation history.",
+            "This deletes its T3 conversation and linked local Codex and Claude histories. Other provider histories, project files, and cloud conversations are kept.",
           ].join("\n"),
           { variant: "destructive" },
         ),

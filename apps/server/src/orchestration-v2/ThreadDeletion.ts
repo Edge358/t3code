@@ -1,4 +1,5 @@
 import type {
+  CommandId,
   OrchestrationV2Command,
   OrchestrationV2DomainEvent,
   OrchestrationV2ThreadProjection,
@@ -18,13 +19,57 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
   readonly command: Extract<OrchestrationV2Command, { readonly type: "thread.delete" }>;
   readonly projection: Pick<
     OrchestrationV2ThreadProjection,
-    "thread" | "runs" | "attempts" | "nodes" | "runtimeRequests" | "subagents" | "providerSessions"
+    | "thread"
+    | "runs"
+    | "attempts"
+    | "nodes"
+    | "runtimeRequests"
+    | "subagents"
+    | "providerSessions"
+    | "providerThreads"
   >;
   readonly attachmentIds: ReadonlyArray<string>;
   readonly now: DateTime.Utc;
   readonly idAllocator: IdAllocator.IdAllocatorV2["Service"];
+  readonly finishHistoryDeletion?: boolean;
+  readonly forceHistoryDeletion?: boolean;
+  readonly historyDeletionRequestId?: CommandId;
 }): Effect.fn.Return<ThreadDeletionPlan, IdAllocator.IdAllocatorV2Error> {
   const { command, projection, now, idAllocator } = input;
+  const targets = projection.providerThreads.filter(
+    (thread) => thread.appThreadId === command.threadId || thread.appThreadId === null,
+  );
+  const deletingHistory =
+    !input.finishHistoryDeletion &&
+    (input.forceHistoryDeletion === true ||
+      targets.length > 0 ||
+      projection.thread.historyDeletion !== undefined);
+  const historyDeletion = deletingHistory
+    ? {
+        requestId: input.historyDeletionRequestId ?? command.commandId,
+        status: "pending" as const,
+        message: "Deleting local conversation histories. Project files are kept.",
+        targets: targets.map((target) => {
+          const previous = projection.thread.historyDeletion?.targets.find(
+            (entry) =>
+              entry.providerThreadId === target.id &&
+              entry.nativeId === target.nativeThreadRef?.nativeId,
+          );
+          return {
+            providerThreadId: target.id,
+            providerInstanceId: target.providerInstanceId,
+            driver: target.driver,
+            nativeId: target.nativeThreadRef?.nativeId ?? null,
+            status:
+              previous?.status === "deleted" || previous?.status === "absent"
+                ? previous.status
+                : target.driver === "codex" || target.driver === "claudeAgent"
+                  ? ("pending" as const)
+                  : ("unsupported" as const),
+          };
+        }),
+      }
+    : projection.thread.historyDeletion;
   const events: Array<OrchestrationV2DomainEvent> = [];
   const effects: Array<PendingOrchestrationEffectV2> = [];
   let current = projection;
@@ -54,13 +99,14 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
   });
 
   yield* emitEvent({
-    type: "thread.deleted",
+    type: deletingHistory ? "thread.metadata-updated" : "thread.deleted",
     threadId: command.threadId,
     providerInstanceId: projection.thread.providerInstanceId,
     occurredAt: now,
     payload: {
       ...projection.thread,
-      deletedAt: projection.thread.deletedAt ?? now,
+      deletedAt: deletingHistory ? null : (projection.thread.deletedAt ?? now),
+      ...(historyDeletion === undefined ? {} : { historyDeletion }),
       titleRegeneration: null,
       updatedAt: now,
     },
@@ -180,6 +226,16 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
         },
       });
     }
+  }
+
+  if (deletingHistory) {
+    effects.push({
+      id: `effect:${command.commandId}:thread.history-delete`,
+      commandId: command.commandId,
+      threadId: command.threadId,
+      request: { type: "thread.history-delete" },
+    });
+    return { events, effects };
   }
 
   for (const session of projection.providerSessions) {

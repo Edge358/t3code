@@ -17,6 +17,7 @@ import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
+import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -172,6 +173,10 @@ export interface ProviderSessionManagerV2Shape {
     ProviderSessionManagerV2Error
   >;
   readonly isLive: (providerSessionId: ProviderSessionId) => Effect.Effect<boolean>;
+  /** History deletion must wait for process teardown, including a release that timed out earlier. */
+  readonly awaitClosed: (
+    providerSessionId: ProviderSessionId,
+  ) => Effect.Effect<void, ProviderSessionCloseError>;
   readonly close: (
     providerSessionId: ProviderSessionId,
   ) => Effect.Effect<void, ProviderSessionManagerV2Error>;
@@ -402,6 +407,13 @@ export const layerWithOptions = (
           }),
       );
       const sessions = yield* Ref.make(new Map<string, LiveSessionEntry>());
+      const pendingClosures = new Map<
+        Scope.Closeable,
+        {
+          readonly providerSessionId: ProviderSessionId;
+          readonly done: Deferred.Deferred<void, ProviderSessionCloseError>;
+        }
+      >();
       // Retry per released entry; reusing ids must not lose cleanup for earlier threads.
       const releaseRecordRetries = yield* FiberSet.make();
       const nextSubscriberId = yield* Ref.make(0);
@@ -953,6 +965,10 @@ export const layerWithOptions = (
               }
               const updated = new Map(current);
               updated.delete(key);
+              pendingClosures.set(existing.scope, {
+                providerSessionId: input.providerSessionId,
+                done: Deferred.makeUnsafe<void, ProviderSessionCloseError>(),
+              });
               return ["removed", updated] as const;
             }),
             DateTime.now,
@@ -976,6 +992,25 @@ export const layerWithOptions = (
           Effect.exit,
           Effect.forkDetach({ startImmediately: true }),
         );
+        const pending = pendingClosures.get(scope);
+        if (pending !== undefined) {
+          yield* Fiber.join(closeFiber).pipe(
+            Effect.flatMap((exit) => {
+              if (Exit.isSuccess(exit)) {
+                pendingClosures.delete(scope);
+                return Deferred.succeed(pending.done, undefined);
+              }
+              return Deferred.fail(
+                pending.done,
+                new ProviderSessionCloseError({
+                  providerSessionId: pending.providerSessionId,
+                  cause: exit.cause,
+                }),
+              );
+            }),
+            Effect.forkDetach({ startImmediately: true }),
+          );
+        }
         const closeExit = yield* Fiber.join(closeFiber).pipe(
           Effect.timeoutOption(RELEASE_SCOPE_CLOSE_TIMEOUT_MS),
         );
@@ -2359,6 +2394,18 @@ export const layerWithOptions = (
             ),
         ),
         release: releaseEntry,
+        awaitClosed: Effect.fn("ProviderSessionManager.awaitClosed")(function (providerSessionId) {
+          return Effect.forEach(
+            [...pendingClosures.values()].filter(
+              (pending) => pending.providerSessionId === providerSessionId,
+            ),
+            (pending) => Deferred.await(pending.done),
+            { discard: true },
+          ).pipe(
+            Effect.timeout(RELEASE_SCOPE_CLOSE_TIMEOUT_MS),
+            Effect.mapError((cause) => new ProviderSessionCloseError({ providerSessionId, cause })),
+          );
+        }),
         releaseUnlessBusy: Effect.fn("ProviderSessionManager.releaseUnlessBusy")(function* (input) {
           const key = sessionKey(input.providerSessionId);
           const before = (yield* Ref.get(sessions)).get(key);

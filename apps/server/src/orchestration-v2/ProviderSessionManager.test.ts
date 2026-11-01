@@ -342,6 +342,7 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
     readonly beforeUnload?: Effect.Effect<void>;
     readonly spawnBeforeOpen?: boolean;
     readonly scopeCloseReached?: Deferred.Deferred<void>;
+    readonly scopeCloseRelease?: Deferred.Deferred<void>;
   } = {},
 ) {
   const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
@@ -356,7 +357,13 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
     (options.scopeCloseReached === undefined
       ? Effect.void
       : Deferred.succeed(options.scopeCloseReached, undefined)
-    ).pipe(Effect.andThen(Effect.never)),
+    ).pipe(
+      Effect.andThen(
+        options.scopeCloseRelease === undefined
+          ? Effect.never
+          : Deferred.await(options.scopeCloseRelease),
+      ),
+    ),
   );
   return ProviderAdapter.ProviderAdapterV2.of({
     instanceId: ProviderInstanceId.make("codex"),
@@ -490,6 +497,7 @@ function layerTest(input: {
   readonly beforeUnload?: Effect.Effect<void>;
   readonly spawnBeforeOpen?: boolean;
   readonly scopeCloseReached?: Deferred.Deferred<void>;
+  readonly scopeCloseRelease?: Deferred.Deferred<void>;
   readonly serverSettingsLayer?: ReturnType<typeof ServerSettings.layerTest>;
   readonly projectServiceLayer?: Layer.Layer<ProjectService.ProjectService>;
 }) {
@@ -525,6 +533,9 @@ function layerTest(input: {
       ...(input.interruptTurn === undefined ? {} : { interruptTurn: input.interruptTurn }),
       ...(input.beforeUnload === undefined ? {} : { beforeUnload: input.beforeUnload }),
       ...(input.spawnBeforeOpen === undefined ? {} : { spawnBeforeOpen: input.spawnBeforeOpen }),
+      ...(input.scopeCloseRelease === undefined
+        ? {}
+        : { scopeCloseRelease: input.scopeCloseRelease }),
       ...(input.scopeCloseReached === undefined
         ? {}
         : { scopeCloseReached: input.scopeCloseReached }),
@@ -3818,4 +3829,57 @@ it.effect("ProviderSessionManagerV2 gives a delegated child its project's device
     });
     assert.isTrue(child?.capabilities?.has("device"));
   }),
+);
+
+it.effect(
+  "history deletion waits for a late provider shutdown after ordinary release times out",
+  () =>
+    Effect.gen(function* () {
+      const state = yield* Ref.make(emptyState);
+      const scopeCloseReached = yield* Deferred.make<void>();
+      const scopeCloseRelease = yield* Deferred.make<void>();
+      yield* Effect.gen(function* () {
+        const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
+        const idAllocator = yield* IdAllocator.IdAllocatorV2;
+        const events = yield* EventSink.EventSinkV2;
+        const threadId = ThreadId.make("late-close-history");
+        const now = yield* DateTime.now;
+        yield* events.write({
+          events: [yield* makeThreadCreatedEvent({ idAllocator, threadId, now })],
+        });
+        const providerSessionId = idAllocator.derive.providerSession({
+          providerInstanceId: modelSelection.instanceId,
+        });
+        yield* manager.open({ threadId, providerSessionId, modelSelection, runtimePolicy });
+        const releasing = yield* manager
+          .releaseUnlessBusy({
+            providerSessionId,
+            ownProviderThreadIds: [],
+            reason: "manual_shutdown",
+          })
+          .pipe(Effect.forkChild({ startImmediately: true }));
+        yield* Deferred.await(scopeCloseReached);
+        yield* TestClock.adjust(30_000);
+        assert.isTrue(yield* Fiber.join(releasing));
+        assert.isFalse(yield* manager.isLive(providerSessionId));
+        const waiting = yield* manager
+          .awaitClosed(providerSessionId)
+          .pipe(Effect.result, Effect.forkChild({ startImmediately: true }));
+        yield* TestClock.adjust(30_000);
+        assert.equal((yield* Fiber.join(waiting))._tag, "Failure");
+        yield* Deferred.succeed(scopeCloseRelease, undefined);
+        yield* manager.awaitClosed(providerSessionId);
+        assert.equal((yield* Ref.get(state)).closeCount, 1);
+      }).pipe(
+        Effect.provide(
+          layerTest({
+            state,
+            idleTimeoutMs: 60 * 60_000,
+            hangSessionScopeClose: true,
+            scopeCloseReached,
+            scopeCloseRelease,
+          }),
+        ),
+      );
+    }),
 );

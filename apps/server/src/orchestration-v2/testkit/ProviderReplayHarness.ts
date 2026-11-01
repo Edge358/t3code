@@ -1,3 +1,5 @@
+import * as HistoryDeletionService from "../HistoryDeletionService.ts";
+import * as UsageService from "../../usage/UsageService.ts";
 import * as OtelEnvironment from "@t3tools/shared/otelEnvironment";
 import { DEFAULT_SIGNAL_EXPORT } from "@t3tools/shared/observability";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -496,7 +498,20 @@ export function layerWithRegistry<Error>(
           ),
         )
       : Layer.empty;
+  const layerHistoryDeletion = HistoryDeletionService.layer.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        layerStores,
+        layerDatabase,
+        layerProviderSessionManagerProvided,
+        layerProvidedRegistry,
+        layerThreadManagementProvided,
+        Layer.mock(UsageService.UsageService)({ prepareDeletion: Effect.void }),
+      ),
+    ),
+  );
   const layerEffectExecutorProvided = EffectWorker.layerExecutor.pipe(
+    Layer.provide(layerHistoryDeletion),
     Layer.provide(
       Layer.mergeAll(
         layerRunFinalizationServiceProvided,

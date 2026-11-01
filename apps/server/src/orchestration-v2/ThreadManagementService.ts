@@ -746,11 +746,24 @@ const make = Effect.gen(function* () {
     }
   };
 
-  const dispatch: ThreadManagementServiceShape["dispatch"] = (command) =>
-    ensureCommandTranscripts(command).pipe(
-      Effect.andThen(assertDispatchTargetEnabled(command)),
-      Effect.andThen(orchestrator.dispatch(command)),
+  const dispatch: ThreadManagementServiceShape["dispatch"] = Effect.fn(
+    "ThreadManagementService.dispatch",
+  )(function* (command) {
+    yield* ensureCommandTranscripts(command);
+    yield* assertDispatchTargetEnabled(command);
+    const result = yield* orchestrator.dispatch(command);
+    if (command.type !== "thread.delete") return result;
+    const deletionEvents = result.storedEvents.filter(
+      (entry) =>
+        entry.event.type === "thread.metadata-updated" &&
+        entry.event.payload.historyDeletion !== undefined,
     );
+    for (const entry of deletionEvents) {
+      if (entry.event.type !== "thread.metadata-updated") continue;
+      yield* orchestrator.awaitThreadDeletion(entry.event.threadId);
+    }
+    return result;
+  });
 
   const getProjectThreadRecords: ThreadManagementServiceShape["getProjectThreadRecords"] = (
     input,

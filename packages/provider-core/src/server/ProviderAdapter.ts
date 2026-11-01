@@ -565,6 +565,10 @@ export type ProviderAdapterV2SubagentOutcome = {
 };
 
 export interface ProviderAdapterV2SessionRuntime {
+  readonly deleteThreadHistory?: (input: {
+    readonly providerThread: OrchestrationV2ProviderThread;
+    readonly protectedNativeIds: ReadonlyArray<string>;
+  }) => Effect.Effect<"deleted" | "absent" | "retained", ProviderAdapterV2Error>;
   readonly instanceId: ProviderInstanceId;
   readonly driver: ProviderDriverKind;
   readonly providerSessionId: ProviderSessionId;

@@ -304,7 +304,19 @@ export class OrchestratorCommandIdConflictError extends Schema.TaggedError<Orche
   }
 }
 
+const isClientCommand = Schema.is(OrchestrationV2Command);
+
+export class ThreadHistoryDeletionError extends Schema.TaggedError<ThreadHistoryDeletionError>()(
+  "ThreadHistoryDeletionError",
+  { threadId: ThreadId, detail: Schema.String },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+
 export const OrchestratorV2Error = Schema.Union([
+  ThreadHistoryDeletionError,
   OrchestratorDispatchError,
   OrchestratorThreadAlreadyExistsError,
   OrchestratorCommandRejectedError,
@@ -336,6 +348,7 @@ export interface OrchestratorV2Shape {
   readonly restartContinuationPending: (run: OrchestrationV2Run) => Effect.Effect<boolean>;
   /** Declined continuations emit no thread event; this still wakes waiters. */
   readonly awaitRestartContinuation: (run: OrchestrationV2Run) => Effect.Effect<void>;
+  readonly awaitThreadDeletion: (threadId: ThreadId) => Effect.Effect<void, OrchestratorV2Error>;
   readonly dispatch: (
     command: OrchestrationV2ServerCommand,
   ) => Effect.Effect<OrchestratorV2DispatchResult, OrchestratorV2Error>;
@@ -494,6 +507,7 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "thread.archive":
     case "thread.unarchive":
     case "thread.delete":
+    case "thread.history-deletion.update":
     case "thread.guest-share.open":
     case "thread.guest-share.redeem":
     case "thread.guest-share.close":
@@ -12893,8 +12907,74 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         );
         break;
       }
+      case "thread.history-deletion.update": {
+        const projection = yield* mapDispatchError(command)(
+          projectionStore.getThreadRecords(command.threadId, [
+            "runs",
+            "attempts",
+            "nodes",
+            "runtimeRequests",
+            "subagents",
+            "providerSessions",
+            "providerThreads",
+          ]),
+        );
+        if (projection.thread.historyDeletion?.requestId !== command.state.requestId) {
+          return yield* new ThreadHistoryDeletionError({
+            threadId: command.threadId,
+            detail: "The deletion request has changed.",
+          });
+        }
+        const now = yield* DateTime.now;
+        const thread = { ...projection.thread, historyDeletion: command.state, updatedAt: now };
+        if (command.state.status === "complete") {
+          return yield* mapDispatchError(command)(
+            planThreadDeletion({
+              command: {
+                type: "thread.delete",
+                commandId: command.commandId,
+                threadId: command.threadId,
+              },
+              projection: { ...projection, thread },
+              attachmentIds: yield* mapDispatchError(command)(
+                projectionStore.getThreadAttachmentIds(command.threadId),
+              ),
+              now,
+              idAllocator,
+              finishHistoryDeletion: true,
+            }),
+          );
+        }
+        return {
+          events: [
+            {
+              id: yield* mapDispatchError(command)(
+                idAllocator.allocate.event({
+                  threadId: command.threadId,
+                  commandId: command.commandId,
+                }),
+              ),
+              type: "thread.metadata-updated" as const,
+              threadId: command.threadId,
+              occurredAt: now,
+              payload: thread,
+            },
+          ],
+          effects: [],
+        };
+      }
       case "thread.delete": {
         const now = yield* DateTime.now;
+        const groupHasNativeHistory =
+          sideChatIds.length > 0 &&
+          (yield* Effect.forEach([...sideChatIds, command.threadId], (threadId) =>
+            projectionStore
+              .getThreadRecords(threadId, ["providerThreads"])
+              .pipe(mapDispatchError(command)),
+          )).some(
+            (record) =>
+              record.providerThreads.length > 0 || record.thread.historyDeletion !== undefined,
+          );
         const planDeletion = Effect.fn("Orchestrator.planDeletion")(function* (
           deletion: typeof command,
         ) {
@@ -12906,15 +12986,50 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               "runtimeRequests",
               "subagents",
               "providerSessions",
+              "providerThreads",
             ])
             .pipe(
               Effect.mapError(
                 (cause) => new OrchestratorProjectionError({ threadId: deletion.threadId, cause }),
               ),
             );
+          if (projection.thread.deletedAt !== null) return { events: [], effects: [] };
+          const previousDeletion = projection.thread.historyDeletion;
+          const previousEffect =
+            previousDeletion === undefined
+              ? Option.none()
+              : yield* effectOutbox
+                  .get(`effect:${previousDeletion.requestId}:thread.history-delete`)
+                  .pipe(mapDispatchError(command));
+          if (
+            Option.exists(
+              previousEffect,
+              (effect) => effect.status === "pending" || effect.status === "running",
+            )
+          ) {
+            return {
+              events: [
+                {
+                  id: yield* mapDispatchError(command)(
+                    idAllocator.allocate.event({
+                      threadId: deletion.threadId,
+                      commandId: deletion.commandId,
+                    }),
+                  ),
+                  type: "thread.metadata-updated" as const,
+                  threadId: deletion.threadId,
+                  occurredAt: now,
+                  payload: projection.thread,
+                },
+              ],
+              effects: [],
+            };
+          }
           return yield* mapDispatchError(command)(
             planThreadDeletion({
               command: deletion,
+              forceHistoryDeletion: groupHasNativeHistory,
+              historyDeletionRequestId: command.commandId,
               projection,
               attachmentIds: yield* projectionStore
                 .getThreadAttachmentIds(deletion.threadId)
@@ -12950,7 +13065,32 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         ];
         return {
           events: plans.flatMap((plan) => plan.events),
-          effects: plans.flatMap((plan) => plan.effects),
+          effects: plans.flatMap((plan, index) =>
+            plan.effects.flatMap((effect) =>
+              effect.request.type !== "thread.history-delete"
+                ? [effect]
+                : index === 0
+                  ? [
+                      {
+                        ...effect,
+                        request: {
+                          ...effect.request,
+                          threadIds: [...sideChatIds, command.threadId],
+                        },
+                      },
+                    ]
+                  : [],
+            ),
+          ),
+          cancelUnsettledEffects: {
+            effectTypes: [
+              "provider-turn.start",
+              "provider-turn.restart",
+              "provider-runtime.continue",
+              "thread-title.generate",
+            ] as const,
+            reason: "Thread deletion requested.",
+          },
         };
       }
       case "thread.archive":
@@ -13318,6 +13458,33 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       if (shell !== null) yield* refuseAboveDispatchModeLimit(command, threadId, shell);
     }
 
+    if (
+      isClientCommand(command) &&
+      ![
+        "thread.create",
+        "thread.delete",
+        "thread.visit",
+        "thread.mark-unread",
+        "thread.stop",
+        "subagent.stop",
+        "provider-session.detach",
+      ].includes(command.type)
+    ) {
+      const affected =
+        command.type === "thread.fork" || command.type === "thread.merge_back"
+          ? [command.sourceThreadId, command.targetThreadId]
+          : [commandThreadId(command)];
+      for (const threadId of affected) {
+        const thread = yield* findThread(threadId);
+        if (thread?.historyDeletion !== undefined) {
+          return yield* new ThreadHistoryDeletionError({
+            threadId,
+            detail:
+              "This conversation is being deleted. Use Delete again to retry any unfinished history deletion.",
+          });
+        }
+      }
+    }
     const plan = yield* dispatchOnce(command, sideChatIds).pipe(
       Effect.filterOrFail(
         (planned) =>
@@ -13800,6 +13967,25 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     ),
     awaitRestartContinuation: Effect.fn("OrchestratorV2.awaitRestartContinuation")(function (run) {
       return effectOutbox.awaitSettled(`effect:restart-continuation:${run.id}`).pipe(Effect.ignore);
+    }),
+    awaitThreadDeletion: Effect.fn("Orchestrator.awaitThreadDeletion")(function* (threadId) {
+      const before = yield* projectionStore
+        .getThread(threadId)
+        .pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause })));
+      if (before.historyDeletion === undefined || before.deletedAt !== null) return;
+      yield* effectOutbox
+        .awaitSettled(`effect:${before.historyDeletion.requestId}:thread.history-delete`)
+        .pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause })));
+      const after = yield* projectionStore
+        .getThread(threadId)
+        .pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause })));
+      if (after.deletedAt === null)
+        return yield* new ThreadHistoryDeletionError({
+          threadId,
+          detail:
+            after.historyDeletion?.message ??
+            "Conversation deletion is incomplete. Use Delete again to retry.",
+        });
     }),
     dispatch: dispatchWithReceipt,
     autoArmLimitRecovery: Effect.fn("OrchestratorV2.autoArmLimitRecovery")(function (input) {

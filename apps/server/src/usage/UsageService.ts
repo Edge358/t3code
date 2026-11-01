@@ -1,3 +1,4 @@
+import { UsageDay } from "@t3tools/contracts";
 import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 import {
   type ProviderInstanceConfig,
@@ -145,6 +146,7 @@ export class UsageService extends Context.Service<
   {
     readonly readSummary: (input: UsageSummaryInput) => Effect.Effect<UsageSummary, UsageReadError>;
     readonly refreshRates: Effect.Effect<UsagePricing>;
+    readonly prepareDeletion: Effect.Effect<void, UsageReadError>;
   }
 >()("t3/usage/UsageService") {}
 
@@ -930,7 +932,25 @@ export const make = Effect.gen(function* () {
     return yield* Deferred.await(deferred);
   });
 
-  return { readSummary, refreshRates, awaitPersisted } as const;
+  const prepareDeletion = Effect.gen(function* () {
+    const now = DateTime.toEpochMillis(yield* DateTime.now);
+    yield* readSummary({
+      sinceDay: UsageDay.make(
+        DateTime.formatIso(DateTime.makeUnsafe(now - CACHE_RETENTION_DAYS * 86400000)).slice(0, 10),
+      ),
+      untilDay: UsageDay.make(DateTime.formatIso(DateTime.makeUnsafe(now)).slice(0, 10)),
+      timeZone: "UTC",
+      awaitRefresh: true,
+    });
+    yield* awaitPersisted;
+    yield* persistCaches;
+    if (cacheDirty)
+      return yield* new UsageReadError({
+        reason: "scanFailed",
+        detail: "Usage could not be saved before deleting conversation history.",
+      });
+  });
+  return { readSummary, refreshRates, awaitPersisted, prepareDeletion } as const;
 });
 
 export const layer = Layer.effect(UsageService, make);

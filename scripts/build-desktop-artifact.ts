@@ -1709,8 +1709,8 @@ export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
   }
   const version = mergeOptions(input.buildVersion, env.version, undefined);
   const releaseDir = resolveBooleanFlag(input.mockUpdates, env.mockUpdates)
-    ? "release-mock"
-    : "release";
+    ? ".local/builds/mock"
+    : ".local/builds/current";
   const outputDir = path.resolve(
     repoRoot,
     mergeOptions(input.outputDir, env.outputDir, releaseDir),
@@ -3637,7 +3637,12 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   const iconAssets = resolveDesktopBuildIconAssets(appVersion);
   const commitHash = yield* resolveGitCommitHash(repoRoot);
   const mkdir = options.keepStage ? fs.makeTempDirectory : fs.makeTempDirectoryScoped;
+  // ASAR's absolute unpack globs do not traverse dot-prefixed parent directories.
+  // Keep disposable staging in the checkout's existing ignored build directory.
+  const stageParent = path.join(repoRoot, "build", "desktop-staging");
+  yield* fs.makeDirectory(stageParent, { recursive: true });
   const stageRoot = yield* mkdir({
+    directory: stageParent,
     prefix: `t3code-desktop-${options.platform}-stage-`,
   });
 
@@ -4060,7 +4065,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   const copiedArtifacts = yield* copyDesktopBuildArtifacts(
     stageDistDir,
     options.outputDir,
-    options.target === "dir",
+    options.target === "dir" || options.platform === "win",
   );
 
   if (copiedArtifacts.length === 0) {

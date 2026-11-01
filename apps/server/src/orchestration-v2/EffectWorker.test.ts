@@ -1,3 +1,4 @@
+import * as HistoryDeletionService from "./HistoryDeletionService.ts";
 import { assert, it } from "@effect/vitest";
 import {
   CheckpointId,
@@ -104,6 +105,7 @@ function layerExecutorFor(input: {
       ProviderSessionManager.ProviderSessionManagerV2,
       ProviderSessionManager.ProviderSessionManagerV2.of({
         shutdown: Effect.void,
+        awaitClosed: () => Effect.void,
         open: () => Effect.die("unused open"),
         get: () => Effect.succeedNone,
         isLive: () => Effect.succeed(false),
@@ -157,6 +159,7 @@ function layerExecutorFor(input: {
     ),
   );
   return EffectWorker.layerExecutor.pipe(
+    Layer.provide(Layer.mock(HistoryDeletionService.HistoryDeletionService)({})),
     Layer.provide(
       Layer.mergeAll(
         layerDependencies,

@@ -1,5 +1,12 @@
 # T3 Code docs
 
+For this custom Windows variant, start with the
+[project map](../README.md#start-here-this-custom-build) and
+[launch, folders, and cleanup guide](../CUSTOM_CHANGES.md#launch-folders-and-cleanup).
+The guides below also describe upstream features; consult the
+[private build restrictions](../CUSTOM_CHANGES.md#5-privacy-and-startup-behavior)
+for differences in this variant.
+
 ## Using T3 Code
 
 - [Install T3 Code](./user/install.md)

@@ -35,6 +35,8 @@ const state = vi.hoisted(() => ({
   toasts: [] as string[],
   afterRequest: undefined as ((action: string) => void) | undefined,
   sessionLookupFails: false,
+  localApiAvailable: true,
+  confirmThreadDelete: true,
 }));
 
 vi.mock("react", () => ({
@@ -137,7 +139,8 @@ vi.mock("../lib/composerDraftUploads", () => ({
   releaseComposerDraftUploads: () => state.localEffects.push("release-uploads"),
 }));
 vi.mock("../localApi", () => ({
-  readLocalApi: () => ({ dialogs: { confirm: state.confirm } }),
+  readLocalApi: () =>
+    state.localApiAvailable ? { dialogs: { confirm: state.confirm } } : undefined,
 }));
 vi.mock("../threadRoutes", () => ({
   resolveThreadRouteRef: () => null,
@@ -156,7 +159,7 @@ vi.mock("./useSettings", () => ({
   useClientSettings: (select: (settings: unknown) => unknown) =>
     select({
       sidebarThreadSortOrder: "createdAt",
-      confirmThreadDelete: true,
+      confirmThreadDelete: state.confirmThreadDelete,
       confirmThreadUnpin: true,
     }),
 }));
@@ -226,9 +229,33 @@ beforeEach(() => {
   state.toasts = [];
   state.afterRequest = undefined;
   state.sessionLookupFails = false;
+  state.localApiAvailable = true;
+  state.confirmThreadDelete = true;
 });
 
 describe("thread action permissions", () => {
+  it.each(["unavailable", "cancelled", "failed"] as const)(
+    "does not delete or clean up a thread when confirmation is %s",
+    async (scenario) => {
+      state.scopes.get(secondary)!.add(AuthOrchestrationOperateScope);
+      if (scenario === "unavailable") state.localApiAvailable = false;
+      if (scenario === "cancelled") state.confirm.mockResolvedValue(false);
+      if (scenario === "failed") state.confirm.mockRejectedValue(new Error("Dialog failed"));
+      const result = await useThreadActions().confirmAndDeleteThread(target);
+      expect(result._tag).toBe(scenario === "cancelled" ? "Success" : "Failure");
+      expect(state.requests).toEqual([]);
+      expect(state.localEffects).toEqual([]);
+    },
+  );
+
+  it("requires confirmation even when the saved delete-confirmation preference is off", async () => {
+    state.scopes.get(secondary)!.add(AuthOrchestrationOperateScope);
+    state.confirmThreadDelete = false;
+    expect((await useThreadActions().confirmAndDeleteThread(target))._tag).toBe("Success");
+    expect(state.confirm).toHaveBeenCalledOnce();
+    expect(state.requests.map((request) => request.action)).toEqual(["stopSession", "delete"]);
+  });
+
   it.each(operations)("$name requires the target environment's grant", async ({ run }) => {
     const result = await run(useThreadActions(), target);
     expect(result._tag).toBe("Failure");

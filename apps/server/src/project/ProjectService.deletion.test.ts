@@ -465,6 +465,7 @@ it.effect("deletes a project without force once its imported threads were delete
       };
       const now = yield* DateTime.now;
       const plan = yield* planThreadDeletion({
+        finishHistoryDeletion: true,
         command,
         projection: yield* projections.getThreadRecords(threadId, [
           "runs",
@@ -473,6 +474,7 @@ it.effect("deletes a project without force once its imported threads were delete
           "runtimeRequests",
           "subagents",
           "providerSessions",
+          "providerThreads",
         ]),
         attachmentIds: [],
         now,

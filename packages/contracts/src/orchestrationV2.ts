@@ -438,7 +438,31 @@ const LenientThreadOpens = Schema.NullOr(OrchestrationV2ThreadOpens).pipe(
   Schema.catchDecoding(() => Effect.succeedSome(null)),
 );
 
+export const ThreadHistoryDeletion = Schema.Struct({
+  requestId: CommandId,
+  status: Schema.Literals(["pending", "failed", "complete"]),
+  message: Schema.String,
+  targets: Schema.Array(
+    Schema.Struct({
+      providerThreadId: ProviderThreadId,
+      providerInstanceId: ProviderInstanceId,
+      driver: ProviderDriverKind,
+      nativeId: Schema.NullOr(Schema.String),
+      status: Schema.Literals([
+        "pending",
+        "deleted",
+        "absent",
+        "unsupported",
+        "retained",
+        "failed",
+      ]),
+    }),
+  ),
+});
+export type ThreadHistoryDeletion = typeof ThreadHistoryDeletion.Type;
+
 export const OrchestrationV2AppThread = Schema.Struct({
+  historyDeletion: Schema.optional(ThreadHistoryDeletion),
   ...OrchestrationV2CreationFields,
   id: ThreadId,
   projectId: ProjectId,
@@ -2056,6 +2080,7 @@ export type OrchestrationV2LatestVisibleMessageSummary =
   typeof OrchestrationV2LatestVisibleMessageSummary.Type;
 
 export const OrchestrationV2ThreadShell = Schema.Struct({
+  historyDeletion: Schema.optional(ThreadHistoryDeletion),
   ...OrchestrationV2CreationFields,
   id: ThreadId,
   projectId: ProjectId,
@@ -3349,6 +3374,12 @@ export type OrchestrationV2Command = typeof OrchestrationV2Command.Type;
 
 // Excluded from dispatchCommand so only the server can send these.
 const OrchestrationV2InternalCommand = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("thread.history-deletion.update"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    state: ThreadHistoryDeletion,
+  }),
   // Guest share commands the server issues after checking T3 Connect and the guest token.
   Schema.Struct({
     type: Schema.Literal("thread.guest-share.open"),

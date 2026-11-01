@@ -51,3 +51,6 @@ node_modules/
 
 # Private local build records and historical evidence; never publish with source.
 /docs/local/
+
+# Local private build, runtime profile, and verification records.
+/.local/

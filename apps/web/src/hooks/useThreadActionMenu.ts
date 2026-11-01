@@ -91,7 +91,7 @@ export function useThreadActionMenu(input: {
     reportFailure: false,
   });
   const handleNewThread = useNewThreadHandler();
-  const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
+  const confirmThreadDelete = true;
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
   const { copyToClipboard: copyPathToClipboard } = useCopyToClipboard<{ path: string }>({
@@ -327,7 +327,7 @@ export function useThreadActionMenu(input: {
               api.dialogs.confirm(
                 [
                   `Delete thread "${thread.title}"?`,
-                  "This permanently clears conversation history for this thread.",
+                  "This deletes the T3 conversation and all linked local Codex and Claude histories. Histories from other providers remain. Project files and cloud conversations are not deleted.",
                 ].join("\n"),
                 { variant: "destructive" },
               ),

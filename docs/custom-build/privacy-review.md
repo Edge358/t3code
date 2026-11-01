@@ -1,7 +1,7 @@
 # Custom build: security and privacy review ledger
 
 Checkpoint: 2026-10-31. Base: T3 Code `v0.1.6`, commit
-`2359643cffa6ba9ee84d6f2694b935de54a8013e`. Current packaged build: private.15.
+`2359643cffa6ba9ee84d6f2694b935de54a8013e`. Current build and validation: [custom changes](../../CUSTOM_CHANGES.md).
 See [the complete change summary](../../CUSTOM_CHANGES.md) for appearance,
 navigation, defaults, speech, validation, and possible upstream proposals.
 
@@ -48,7 +48,7 @@ about every current upstream version.
 | P12 Provider-owned optional traffic | private.1 runtime observation attributed a connection to `http-intake.logs.us5.datadoghq.com` to a Claude child during provider checking.                                                                                    | `ClaudeHome.ts` adds optional-traffic opt-outs after inherited/provider environment; `ClaudeAdapterV2.ts` reapplies at SDK spawn.                                                                                                                               | TLS payloads were not decrypted. Do not claim prompts were sent to that host or prove they were not. Provider-global configuration/binaries were not rewritten.                                                                                                              |
 | P13 Explanatory UI                  | Onboarding text did not describe this variant accurately; mounting onboarding triggered checks.                                                                                                                              | `WelcomeWizard.tsx` explains disabled reporting and intended provider use; checking is an explicit onboarding action. GitHub-star prompt is separately disabled.                                                                                                | Initial backend discovery still runs in the current build. Promotion suppression is a preference, not a security fix.                                                                                                                                                        |
 | P14 Development listeners           | Development/test listeners can expose local tooling beyond loopback depending on configuration.                                                                                                                              | Web Vite/browser-test listener configuration was restricted to loopback.                                                                                                                                                                                        | Does not establish the security of every development service or a production remote-debugging setup.                                                                                                                                                                         |
-| P15 Local sensitive storage         | Source stores conversation state, artifacts, logs, event records and secrets. The inspected secret-store layer writes supplied bytes and permissions; it does not itself encrypt them.                                       | Recorded as a limitation, not silently described as fixed. Added 30-day defaults only for old browser artifacts and rotated logs.                                                                                                                               | Effective Windows ACLs, caller-specific encryption and all dependency behavior were not fully audited. No secure erase, history purge, or at-rest encryption feature was added.                                                                                              |
+| P15 Local sensitive storage         | Source stores conversation state, artifacts, logs, event records and secrets. The inspected secret-store layer writes supplied bytes and permissions; it does not itself encrypt them.                                       | Recorded as a limitation, not silently described as fixed. Added 30-day defaults only for old browser artifacts and rotated logs.                                                                                                                               | Effective Windows ACLs, caller-specific encryption and all dependency behavior were not fully audited. Synchronized local provider-history deletion is documented below; secure erase and at-rest encryption were not added.                                                 |
 | P16 Optional speech data flow       | New functionality deliberately sends completed assistant text and conversation/run identifiers to a configured queue.                                                                                                        | Off/blank defaults, explicit address, main-renderer IPC check, saved-address lookup, URL restrictions, no redirects, timeout, queue acknowledgement, and no automatic retry.                                                                                    | Enabling it authorizes that destination to receive the text. HTTP is permitted; service authentication, encryption, retention and LAN setup are not supplied by this integration.                                                                                            |
 
 ## Fixed policy versus settings
@@ -210,7 +210,9 @@ permissions changed. Server typechecking and changed-code lint passed.
 Windows packaging and unpacked launch were validated. The private.15 installer
 was unsigned and not executed. Private evidence preserves artifact hashes,
 build-time source hashes, and later source inventories. The private.13 inventory
-includes post-build test guards; private.15's later changes are documentation.
+includes post-build test guards. Later synchronized-deletion and review changes
+are recorded separately in the current change summary; these historical privacy
+checks do not certify newer builds.
 Hash inventories identify files; they are not source backups or commits.
 
 ## Machine-specific actions outside the repository
@@ -218,8 +220,10 @@ Hash inventories identify files; they are not source backups or commits.
 The private history records an explicitly authorized restriction of two Node
 inbound Allow rules to the Private network profile, removing Public permission
 through those rules. Existing T3 executable Block decisions were preserved.
-Later test launches reused an executable path to avoid repeatedly changing its
-Windows firewall identity. These actions are not installer behavior and are not
+After repository-local consolidation, 12 obsolete rules for six deleted build
+executables were removed. The current executable's two inbound Block rules and
+the shared Node Private-only Allow rules were preserved. These actions are not
+installer behavior and are not
 delivered to another user by copying this repository.
 
 Two personal speech adapters were backed up and given a T3-only opt-out marker.
@@ -229,7 +233,9 @@ their own duplicate-audio handling; they are not bundled here.
 
 The recurring symlink test failure was handled in tests with an existing
 capability probe, not by changing Windows privileges. Development used an
-isolated app profile. No real provider-history purge was performed.
+isolated app profile. Those earlier privacy checks did not purge provider
+histories. Later synchronized-deletion acceptance intentionally removed only
+authorized disposable histories; retained histories were checked independently.
 
 ## Open findings and unverified areas
 
@@ -245,8 +251,11 @@ isolated app profile. No real provider-history purge was performed.
 - Comprehensive packaged external-media/link tests, all provider/tool/network
   combinations, fresh installer behavior, laptop behavior and remote/WSL speech
   remain unverified.
-- Synchronized deletion of local provider histories is deferred. Existing app
-  Delete/Archive must not be described as provider-cloud deletion or secure erase.
+- Synchronized local Codex/Claude deletion passed focused tests and manual
+  Windows checks, including a partial-failure retry. Other provider histories
+  remain unsupported. Archive and project removal preserve provider histories.
+  These operations are not cloud deletion or secure erase. See
+  [deletion validation](../../CUSTOM_CHANGES.md#synchronized-local-conversation-deletion).
 - Future upstream/provider upgrades can change behavior; the restrictions need
   review and regression checks when rebased. This build disables auto-updating.
 

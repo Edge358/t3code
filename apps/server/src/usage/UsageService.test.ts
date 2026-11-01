@@ -2444,6 +2444,7 @@ describe("UsageService", () => {
       yield* Effect.promise(() => NodeFSP.writeFile(transcript, content));
       yield* Effect.gen(function* () {
         const service = yield* UsageService.make;
+        yield* service.prepareDeletion;
         const first = yield* service.readSummary(WINDOW);
         assert.strictEqual(totalOutputTokens(first), 5);
         assert.isAbove(first.buckets[0]?.costUsd ?? 0, 0);

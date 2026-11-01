@@ -46,6 +46,13 @@ Settings that are environment-wide stay read-only while a project is selected. W
 targets disagree, a control shows **Mixed** until you choose one value. Appearance, keyboard,
 and other phone-only settings ignore the filter.
 
+## Removing a project
+
+On desktop or web, open **Settings ? Projects**, select the project, and choose
+**Remove project** under **Danger**. This removes its T3 entry and conversations;
+provider histories and files on disk remain. To remove linked local Codex/Claude
+histories too, [delete the individual conversations first](thread-sidebar.md#delete-a-conversation).
+
 ## Pin and archive projects
 
 Pinned projects come first in the project pickers: the project picker on a new thread, the

@@ -289,6 +289,26 @@ To choose what the thread details card shows, right-click the card or open
 shortcuts, such as Open in editor and project scripts. **Reset to default** brings
 back the standard rows.
 
+## Delete a conversation
+
+Choose **Delete** from the thread menu and confirm. In this build, Delete removes
+the T3 conversation and its linked local Codex and Claude histories, including
+histories from earlier provider selections. Histories from other providers remain.
+Confirmation is required even if it was previously disabled.
+
+The thread stays visible while deletion finishes. If part of the deletion fails,
+its message explains that deletion is incomplete; choose **Delete** again to retry.
+A history shared with a retained thread is kept and prevents complete deletion.
+A thread awaiting deletion cannot accept new work. Settle and Archive preserve
+native conversation history.
+
+History deletion uses the provider's configured storage on the server machine.
+It does not search old provider homes or backups, erase cloud conversations, or
+remove project files. Existing optional worktree cleanup remains a separate action.
+Removing a whole project retains its existing app-only cleanup behavior; delete
+individual threads first when you also want their local provider histories removed.
+Saved usage remains subject to the existing 92-day cache-retention policy.
+
 ## Side chats
 
 A side chat lets you ask a question about a thread without adding to it. It starts

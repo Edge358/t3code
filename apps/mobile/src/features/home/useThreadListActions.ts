@@ -177,7 +177,7 @@ function confirmThreadDeletion(
 ) {
   if (!checkThreadOperationPermission(thread, actionFailureTitle("delete"))) return;
   const title = "Delete thread?";
-  const message = `“${thread.title}” will be permanently deleted, including its terminal history.`;
+  const message = `“${thread.title}” will be permanently deleted, including its terminal history and linked local Codex and Claude histories. Other provider histories, project files, and cloud conversations are kept.`;
   Dialog.confirm({
     title,
     message,

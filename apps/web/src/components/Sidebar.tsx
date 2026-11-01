@@ -900,7 +900,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
+  const confirmThreadDelete = true;
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
@@ -2447,7 +2447,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           api.dialogs.confirm(
             [
               `Delete ${count} thread${count === 1 ? "" : "s"}?`,
-              "This permanently clears conversation history for these threads.",
+              "This deletes these T3 conversations and all linked local Codex and Claude histories. Histories from other providers remain. Project files and cloud conversations are not deleted.",
             ].join("\n"),
             { variant: "destructive" },
           ),
@@ -2811,7 +2811,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 api.dialogs.confirm(
                   [
                     `Delete thread "${thread.title}"?`,
-                    "This permanently clears conversation history for this thread.",
+                    "This deletes the T3 conversation and all linked local Codex and Claude histories. Histories from other providers remain. Project files and cloud conversations are not deleted.",
                   ].join("\n"),
                   { variant: "destructive" },
                 ),

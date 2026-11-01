@@ -10,30 +10,27 @@
 
 ## Start here: this custom build
 
-**Current checkpoint (2026-10-31):** private.15 is built and verified in the
-unpacked Windows test app. Readability, project navigation, optional speech and
-Claude Limits changes are complete. The focused code review and documentation
-cleanup are complete. This local source checkpoint is on `edge358-custom-build`,
-preserving the upstream v0.1.6 history. The installer has not been executed.
+**Current checkpoint (2026-10-31):** private.18 includes the final deletion
+confirmation fix. Code and documentation reviews are complete.
+The app and retained profile live inside this checkout.
+Next: install and verify this build on the desktop before testing other machines.
+Use the links below for launch instructions, locations, and validation details.
 
 Use this README as the project map. The linked documents contain the details;
 update those documents rather than copying their contents here.
 
-| What you need                                 | Where to go                                                                            |
-| --------------------------------------------- | -------------------------------------------------------------------------------------- |
-| What changed, why, and which defaults changed | [Custom changes](CUSTOM_CHANGES.md)                                                    |
-| Code review, tests and known limitations      | [Validation record](CUSTOM_CHANGES.md#6-review-fixes-and-validation-record)            |
-| Security/privacy findings and protections     | [Privacy review](docs/custom-build/privacy-review.md)                                  |
-| How to maintain and build this variant        | [Build guidance](CUSTOM_CHANGES.md#9-maintaining-and-building-this-variant)            |
-| Possible separate contributions to upstream   | [Contribution candidates](CUSTOM_CHANGES.md#7-possible-independent-upstream-proposals) |
-| Deferred features and unverified work         | [Remaining scope](CUSTOM_CHANGES.md#8-deferred-work-and-publication-boundary)          |
-
-**Next recommended step:** install the verified Windows build when requested,
-then check the installed app's settings, provider limits and speech behavior.
-The local source checkpoint precedes installation. No hosted fork or upload is
-part of that checkpoint. Synchronized conversation deletion remains deferred.
+| What you need                                    | Where to go                                                                            |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Open the private app; find or clean up its files | [Launch, folders, and cleanup](CUSTOM_CHANGES.md#launch-folders-and-cleanup)           |
+| What changed, why, and which defaults changed    | [Custom changes](CUSTOM_CHANGES.md)                                                    |
+| Code review, tests and known limitations         | [Validation record](CUSTOM_CHANGES.md#6-review-fixes-and-validation-record)            |
+| Security/privacy findings and protections        | [Privacy review](docs/custom-build/privacy-review.md)                                  |
+| How to maintain and build this variant           | [Build guidance](CUSTOM_CHANGES.md#9-maintaining-and-building-this-variant)            |
+| Possible separate contributions to upstream      | [Contribution candidates](CUSTOM_CHANGES.md#7-possible-independent-upstream-proposals) |
+| Deferred features and unverified work            | [Remaining scope](CUSTOM_CHANGES.md#8-deferred-work-and-publication-boundary)          |
 
 **Private local records:** on the development machine, use the
+[morning installation handoff](docs/local/INSTALL_HANDOFF.md),
 [private index](docs/local/README_T3Code_Review.md),
 [detailed build/decision record](docs/local/T3Code_Private_Build_Record.md), and
 [historical archive](docs/local/T3Code_Document_Archive/2026-10-31_before_consolidation/README.md).

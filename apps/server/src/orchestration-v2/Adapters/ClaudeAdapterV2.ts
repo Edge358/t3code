@@ -604,6 +604,11 @@ export class ClaudeSettingsLaunchArgError extends Schema.TaggedError<ClaudeSetti
 }
 
 export interface ClaudeAgentSdkQueryRunnerShape {
+  readonly deleteSession?: (input: {
+    readonly sessionId: string;
+    readonly protectedNativeIds: ReadonlyArray<string>;
+    readonly environment: NodeJS.ProcessEnv;
+  }) => Effect.Effect<"deleted" | "absent" | "retained", ClaudeAgentSdkQueryRunnerError>;
   readonly allocateSessionId: Effect.Effect<string, ClaudeAgentSdkQueryRunnerError>;
   readonly open: (
     input: ClaudeAgentSdkQueryOpenInput,
@@ -879,9 +884,9 @@ const claudeConfigDirOf = (
 // The SDK reads CLAUDE_CONFIG_DIR from process.env. Isolate custom homes in a
 // worker so concurrent providers keep the server's environment.
 const runClaudeWorker = Effect.fn("runClaudeWorker")(function* (input: {
-  readonly method: "forkSession";
+  readonly method: "forkSession" | "deleteSession";
   readonly sessionId: string;
-  readonly options?: ForkSessionOptions;
+  readonly options?: ForkSessionOptions & { readonly protectedNativeIds?: ReadonlyArray<string> };
   readonly environment: NodeJS.ProcessEnv;
 }) {
   const path = yield* Path.Path;
@@ -951,6 +956,22 @@ export const layerQueryRunner: Layer.Layer<
     const portDiscovery = yield* PortScanner.PortDiscovery;
 
     return ClaudeAgentSdkQueryRunner.of({
+      deleteSession: Effect.fn("ClaudeAgentSdkQueryRunner.deleteSession")(function* (input) {
+        return yield* runClaudeWorker({
+          ...input,
+          method: "deleteSession",
+          options: { protectedNativeIds: input.protectedNativeIds },
+        }).pipe(
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+          Effect.provideService(Path.Path, path),
+          Effect.flatMap(
+            Schema.decodeUnknownEffect(
+              Schema.fromJsonString(Schema.Literals(["deleted", "absent", "retained"])),
+            ),
+          ),
+          Effect.mapError((cause) => queryRunnerError(cause, "deleteSession")),
+        );
+      }),
       allocateSessionId: crypto
         .randomUUIDv4()
         .pipe(Effect.mapError((cause) => queryRunnerError(cause, "allocateSessionId"))),
@@ -11403,6 +11424,31 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                       }),
                 ),
               ),
+          ),
+          deleteThreadHistory: Effect.fn("ClaudeAdapterV2.deleteThreadHistory")(
+            function* (deletion) {
+              const nativeId = yield* getNativeThreadId(deletion.providerThread);
+              if (deletion.protectedNativeIds.includes(nativeId)) return "retained" as const;
+              yield* closeLiveQueryForNativeThread(nativeId);
+              if (queryRunner.deleteSession === undefined)
+                return yield* new ProviderAdapter.ProviderAdapterProtocolError({
+                  driver: CLAUDE_PROVIDER,
+                  detail: "Claude history deletion is unavailable.",
+                });
+              return yield* queryRunner.deleteSession({
+                sessionId: nativeId,
+                protectedNativeIds: deletion.protectedNativeIds,
+                environment: adapterOptions.environment,
+              });
+            },
+            Effect.mapError(
+              (cause) =>
+                new ProviderAdapter.ProviderAdapterProtocolError({
+                  driver: CLAUDE_PROVIDER,
+                  detail: "Claude local history deletion failed.",
+                  payload: cause,
+                }),
+            ),
           ),
           forkThread: Effect.fn("ClaudeAdapterV2.forkThread")(
             function* (forkInput) {

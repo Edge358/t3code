@@ -50,6 +50,7 @@ import {
 import { getModelSelectionStringOptionValue, modelSelectionsEqual } from "@t3tools/shared/model";
 import { appendGeneratedImageEmbeds } from "@t3tools/shared/generatedImageMarkdown";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
+import { deleteCodexHistory } from "./codexHistoryDeletion.ts";
 import type {
   ChatAttachment,
   OrchestrationV2AppThread,
@@ -7679,6 +7680,21 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                       }),
                 ),
               ),
+          ),
+          deleteThreadHistory: Effect.fn("CodexAdapterV2.deleteThreadHistory")(
+            function* (deletion) {
+              const nativeId = yield* getNativeThreadId(deletion.providerThread);
+              yield* ensureInitialized;
+              return yield* deleteCodexHistory(client, nativeId, deletion.protectedNativeIds);
+            },
+            Effect.mapError(
+              (cause) =>
+                new ProviderAdapter.ProviderAdapterProtocolError({
+                  driver: CODEX_PROVIDER,
+                  detail: "Codex local history deletion failed.",
+                  payload: cause,
+                }),
+            ),
           ),
           uploadFeedback: Effect.fn("CodexAdapterV2.uploadFeedback")(
             function* (feedbackInput) {

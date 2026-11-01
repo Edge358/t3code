@@ -1,3 +1,4 @@
+import * as UsageService from "../usage/UsageService.ts";
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -109,7 +110,9 @@ const layerTestProviderInstanceRegistry = Layer.succeed(
 );
 
 const layerTest = Layer.mergeAll(
-  RuntimeLayer.layer,
+  RuntimeLayer.layer.pipe(
+    Layer.provide(Layer.mock(UsageService.UsageService)({ prepareDeletion: Effect.void })),
+  ),
   RuntimeLayer.layerEventSink,
   ThreadCommandExecutor.layer,
 ).pipe(

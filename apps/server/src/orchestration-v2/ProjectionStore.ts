@@ -1576,6 +1576,7 @@ export function threadShellFromProjection(
     opens: projection.thread.opens ?? null,
     titleRegeneration: projection.thread.titleRegeneration ?? null,
     limitRecovery: projection.thread.limitRecovery ?? null,
+    historyDeletion: projection.thread.historyDeletion,
     deletedAt: projection.thread.deletedAt,
   };
 }
@@ -1841,6 +1842,7 @@ function shellFromState(input: {
     opens: input.state.thread.opens ?? null,
     titleRegeneration: input.state.thread.titleRegeneration ?? null,
     limitRecovery: input.state.thread.limitRecovery ?? null,
+    historyDeletion: input.state.thread.historyDeletion,
     deletedAt: input.state.thread.deletedAt,
   };
 }
