@@ -6,6 +6,7 @@ export interface EventNdjsonLogger {
   readonly filePath: string;
   readonly write: (event: unknown, threadId: ThreadId | null) => Effect.Effect<void>;
   readonly close: () => Effect.Effect<void>;
+  readonly removeThread?: (threadId: ThreadId) => Effect.Effect<void, Error>;
 }
 
 export class ProviderEventLoggers extends Context.Service<

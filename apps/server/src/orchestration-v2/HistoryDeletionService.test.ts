@@ -1,7 +1,12 @@
+import * as ProjectionMaintenance from "./ProjectionMaintenance.ts";
+import * as EventStore from "./EventStore.ts";
+import * as ThreadResourceCleanup from "./ThreadResourceCleanup.ts";
+import { ResourceCleanupError } from "./ResourceCleanupService.ts";
 import { assert, it } from "@effect/vitest";
 import {
   CommandId,
   EventId,
+  MessageId,
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -14,6 +19,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
+import * as SqlClient from "effect/sql/SqlClient";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
@@ -30,6 +36,7 @@ import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 it.effect.each([
   "partial",
   "shared",
+  "shared-partial",
   "absent",
   "unsupported",
   "restart",
@@ -42,17 +49,39 @@ it.effect.each([
   "side-chat-independent-pending",
   "side-chat-independent-no-parent-history",
   "detached-session",
+  "subagent-descendants",
+  "cleanup-failure",
+  "legacy-sweep",
 ] as const)(
   "persists a mixed-provider deletion and handles %s without losing retry references",
   (scenario) => {
     const calls: string[] = [];
+    const cleanupCalls: string[] = [];
+    let failCleanup = scenario === "cleanup-failure";
+    const cleanupLayer = Layer.succeed(ThreadResourceCleanup.ThreadResourceCleanup, {
+      cleanupCheckpoints: () =>
+        Effect.sync(() => {
+          cleanupCalls.push("checkpoints");
+        }),
+      cleanupLogs: () =>
+        Effect.suspend(() => {
+          cleanupCalls.push("logs");
+          return failCleanup
+            ? Effect.fail(new ResourceCleanupError({ operation: "logs", cause: "locked fixture" }))
+            : Effect.void;
+        }),
+    });
     const liveSessionId = ProviderSessionId.make("detached-writer-session");
     let writerOpen = false;
     let failClaude =
       scenario === "partial" ||
+      scenario === "shared-partial" ||
       scenario === "side-chat-partial" ||
       scenario === "side-chat-independent-failed";
-    const hasSideChat = scenario.startsWith("side-chat");
+    const hasSideChat =
+      scenario.startsWith("side-chat") ||
+      scenario === "subagent-descendants" ||
+      scenario === "legacy-sweep";
     const independentChild = scenario.startsWith("side-chat-independent");
     const adapters = ["codex", "claudeAgent", "other"].map((name) => {
       const driver = ProviderDriverKind.make(name);
@@ -120,13 +149,18 @@ it.effect.each([
     });
     const db = SqlitePersistence.layerMemory;
     const layer = Layer.mergeAll(
+      db,
+      ProjectionMaintenance.layer.pipe(
+        Layer.provide(Layer.mergeAll(EventStore.layer, ProjectionStore.layer)),
+        Layer.provide(db),
+      ),
       EffectOutbox.layer.pipe(Layer.provide(db)),
       ProjectionStore.layer.pipe(Layer.provide(db)),
       ProviderReplayHarness.layerWithRegistry(
         { name: `history-delete-${scenario}` },
         ProviderAdapterRegistry.layerFromAdapters(adapters),
         { databaseLayer: db, runEffectWorker: false },
-      ),
+      ).pipe(Layer.provide(cleanupLayer)),
     );
     return Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -134,6 +168,7 @@ it.effect.each([
       const events = yield* EventSink.EventSinkV2;
       const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
       const outbox = yield* EffectOutbox.EffectOutboxV2;
+      const sql = yield* SqlClient.SqlClient;
       const target = ThreadId.make("target");
       const neighbor = ThreadId.make("neighbor");
       const create = Effect.fn("test.createHistoryThread")(function* (threadId: ThreadId) {
@@ -155,7 +190,7 @@ it.effect.each([
       yield* create(target);
       yield* create(neighbor);
       const childId = ThreadId.make("side-chat");
-      if (hasSideChat)
+      if (hasSideChat && scenario !== "subagent-descendants" && scenario !== "legacy-sweep")
         yield* orchestrator.dispatch({
           type: "thread.fork",
           commandId: CommandId.make("fork-side-chat"),
@@ -167,7 +202,66 @@ it.effect.each([
           creationSource: "web",
         });
 
+      if (scenario === "subagent-descendants" || scenario === "legacy-sweep") {
+        for (const [id, parent] of [
+          [childId, target],
+          [ThreadId.make("grandchild"), childId],
+        ] as const) {
+          yield* create(id);
+          const thread = yield* projections.getThread(id);
+          yield* events.write({
+            events: [
+              {
+                id: EventId.make(`lineage:${id}`),
+                type: "thread.metadata-updated",
+                threadId: id,
+                occurredAt: yield* DateTime.now,
+                payload: {
+                  ...thread,
+                  lineage: {
+                    parentThreadId: parent,
+                    rootThreadId: target,
+                    relationshipToParent: "subagent",
+                  },
+                },
+              },
+            ],
+          });
+        }
+      }
+
       const now = yield* DateTime.now;
+      const message = {
+        id: MessageId.make("purge-message"),
+        threadId: target,
+        createdBy: "user" as const,
+        creationSource: "web" as const,
+        runId: null,
+        nodeId: null,
+        role: "user" as const,
+        text: "uniquedeletionphrase verify removal",
+        attachments: [],
+        streaming: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      yield* events.write({
+        events: [
+          {
+            id: EventId.make("purge-message-event"),
+            type: "message.updated",
+            threadId: target,
+            occurredAt: now,
+            payload: message,
+          },
+        ],
+      });
+      yield* sql`INSERT INTO mcp_app_model_context (thread_id, item_id, server, tool, text, updated_at)
+        VALUES (${target}, 'item', 'server', 'tool', 'uniquedeletionphrase', '2026-11-01')`;
+      assert.lengthOf(
+        yield* sql`SELECT rowid FROM orchestration_v2_message_search WHERE orchestration_v2_message_search MATCH 'uniquedeletionphrase'`,
+        1,
+      );
       const addNative = Effect.fn("test.addNativeHistory")(function* (
         threadId: ThreadId,
         id: string,
@@ -218,7 +312,7 @@ it.effect.each([
         neighbor,
         "neighbor-history",
         "codex",
-        scenario === "shared" ? "codex-first" : "unrelated",
+        scenario.startsWith("shared") ? "codex-first" : "unrelated",
       );
       if (scenario === "unsupported") yield* addNative(target, "other-history", "other");
       if (hasSideChat) yield* addNative(ThreadId.make("side-chat"), "child-history", "claudeAgent");
@@ -293,11 +387,37 @@ it.effect.each([
           if (Option.isSome(claimed)) assert.equal(claimed.value.threadId, childId);
         }
       }
-      yield* orchestrator.dispatch({
-        type: "thread.delete",
-        commandId: CommandId.make("delete:first"),
-        threadId: target,
-      });
+      if (scenario === "legacy-sweep") {
+        const thread = yield* projections.getThread(target);
+        yield* events.write({
+          events: [
+            {
+              id: EventId.make("old-soft-deletion"),
+              type: "thread.deleted",
+              threadId: target,
+              occurredAt: now,
+              payload: {
+                ...thread,
+                deletedAt: now,
+                historyDeletion: {
+                  requestId: CommandId.make("old-delete"),
+                  status: "complete",
+                  message: "old completion",
+                  targets: [],
+                },
+              },
+            },
+          ],
+        });
+        assert.include(yield* projections.getDeletionSweepThreadIds(), target);
+        yield* orchestrator.recoverDelegatedTasks;
+      } else {
+        yield* orchestrator.dispatch({
+          type: "thread.delete",
+          commandId: CommandId.make("delete:first"),
+          threadId: target,
+        });
+      }
       assert.isNull((yield* projections.getThread(target)).deletedAt);
       if (scenario === "side-chat-double-delete") {
         // A second Delete while the first is queued is a no-op for the whole group.
@@ -340,17 +460,22 @@ it.effect.each([
       assert.equal(blocked._tag, "Failure");
       yield* worker.drain();
       const first = yield* projections.getThread(target);
+      if (scenario === "subagent-descendants") {
+        assert.isNotNull((yield* projections.getThread(childId)).deletedAt);
+        assert.isNotNull((yield* projections.getThread(ThreadId.make("grandchild"))).deletedAt);
+      }
       assert.equal(
         first.historyDeletion?.status,
         scenario === "partial" ||
-          scenario === "shared" ||
+          scenario === "shared-partial" ||
+          scenario === "cleanup-failure" ||
           scenario === "side-chat-partial" ||
           scenario === "side-chat-independent-failed" ||
           scenario === "side-chat-independent-pending"
           ? "failed"
           : "complete",
       );
-      assert.equal(first.worktreePath, process.cwd());
+      assert.equal(first.worktreePath, first.deletedAt === null ? process.cwd() : null);
       assert.isNull((yield* projections.getThread(neighbor)).deletedAt);
       assert.notInclude(calls, "unrelated");
       if (scenario === "detached-session") assert.isFalse(writerOpen);
@@ -406,25 +531,17 @@ it.effect.each([
       }
 
       if (scenario === "shared") {
-        assert.include(first.historyDeletion!.message, "Shared histories are kept.");
         assert.notInclude(calls, "codex-first");
-        assert.equal(
-          first.historyDeletion?.targets.find((entry) => entry.nativeId === "codex-first")?.status,
-          "retained",
-        );
+        assert.isNotNull(first.deletedAt);
       }
-      if (scenario === "unsupported") {
-        assert.notInclude(calls, "other-history");
+      if (scenario === "unsupported") assert.notInclude(calls, "other-history");
+      if (scenario === "partial" || scenario === "shared-partial") {
         assert.equal(
-          first.historyDeletion?.targets.find((entry) => entry.nativeId === "other-history")
-            ?.status,
-          "unsupported",
+          first.historyDeletion!.message.includes("Shared histories are kept."),
+          scenario === "shared-partial",
         );
-      }
-      if (scenario === "partial") {
-        assert.notInclude(first.historyDeletion!.message, "Shared histories");
         assert.isNull(first.deletedAt);
-        // A failed deletion is not a one-way door: ordinary commands work again.
+        // Archiving stays available while new provider work is blocked after partial cleanup.
         const archived = yield* orchestrator
           .dispatch({
             type: "thread.archive",
@@ -444,7 +561,90 @@ it.effect.each([
         const completed = yield* projections.getThread(target);
         assert.isNotNull(completed.deletedAt);
         assert.equal(completed.historyDeletion?.status, "complete");
-        assert.sameMembers(calls, ["codex-first", "claude", "codex-return", "claude"]);
+        assert.sameMembers(
+          calls,
+          scenario === "shared-partial"
+            ? ["claude", "codex-return", "claude"]
+            : ["codex-first", "claude", "codex-return", "claude"],
+        );
+      }
+      if (scenario === "cleanup-failure") {
+        assert.isNull(first.deletedAt);
+        assert.lengthOf(
+          yield* sql`SELECT * FROM orchestration_v2_projection_messages WHERE thread_id = ${target}`,
+          1,
+        );
+        assert.deepEqual(cleanupCalls, ["checkpoints", "logs"]);
+        failCleanup = false;
+        yield* orchestrator.dispatch({
+          type: "thread.delete",
+          threadId: target,
+          commandId: CommandId.make("retry-cleanup"),
+        });
+        yield* worker.drain();
+        assert.deepEqual(cleanupCalls, ["checkpoints", "logs", "logs"]);
+        assert.sameMembers(calls, ["codex-first", "claude", "codex-return"]);
+      }
+      const final = yield* projections.getThread(target);
+      if (final.deletedAt !== null) {
+        assert.equal(final.title, "Deleted conversation");
+        assert.isNull(final.worktreePath);
+        assert.deepEqual(
+          yield* sql`SELECT * FROM orchestration_v2_projection_provider_threads WHERE thread_id = ${target}`,
+          [],
+        );
+        assert.deepEqual(
+          yield* sql`SELECT * FROM orchestration_v2_projection_provider_sessions WHERE thread_id = ${target}`,
+          [],
+        );
+        assert.deepEqual(
+          yield* sql`SELECT * FROM orchestration_command_receipts WHERE aggregate_id = ${target}`,
+          [],
+        );
+        assert.deepEqual(
+          yield* sql`SELECT * FROM orchestration_v2_effect_outbox WHERE thread_id = ${target}`,
+          [],
+        );
+        const remaining = yield* sql<{
+          event_type: string;
+        }>`SELECT event_type FROM orchestration_events WHERE stream_id = ${target}`;
+        assert.sameMembers(
+          remaining.map((row) => row.event_type),
+          ["thread.created", "thread.deleted"],
+        );
+        assert.deepEqual(
+          yield* sql`SELECT * FROM mcp_app_model_context WHERE thread_id = ${target}`,
+          [],
+        );
+        assert.deepEqual(
+          yield* sql`SELECT rowid FROM orchestration_v2_message_search WHERE orchestration_v2_message_search MATCH 'uniquedeletionphrase'`,
+          [],
+        );
+        const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+        const verification = yield* maintenance.verify;
+        assert.isTrue(verification.valid);
+        assert.isTrue((yield* maintenance.rebuild).valid);
+        assert.isTrue((yield* projections.getThread(target)).historyDeletion?.purged);
+        assert.isNull((yield* projections.getThread(neighbor)).deletedAt);
+        assert.deepEqual(
+          yield* events.write({
+            events: [
+              {
+                id: EventId.make("late-message"),
+                type: "message.updated",
+                threadId: target,
+                occurredAt: now,
+                payload: message,
+              },
+            ],
+          }),
+          [],
+        );
+        assert.deepEqual(
+          yield* sql`SELECT * FROM orchestration_v2_projection_messages WHERE thread_id = ${target}`,
+          [],
+        );
+        assert.notInclude(yield* projections.getDeletionSweepThreadIds(), target);
       }
     }).pipe(Effect.provide(layer));
   },

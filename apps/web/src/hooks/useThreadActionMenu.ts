@@ -325,7 +325,7 @@ export function useThreadActionMenu(input: {
             api.dialogs.confirm(
               [
                 `Delete thread "${thread.title}"?`,
-                "This deletes the T3 conversation and all linked local Codex and Claude histories. Histories from other providers remain. Project files and cloud conversations are not deleted.",
+                "This permanently deletes the conversation and its child conversations, their T3 server data, logs, checkpoints, and unshared local Codex and Claude histories. Project files, shared resources, other provider histories, and cloud data are kept. This is not a secure erase.",
               ].join("\n"),
               { variant: "destructive" },
             ),

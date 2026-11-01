@@ -1,3 +1,4 @@
+import { descendantThreadIds } from "./ThreadPurge.ts";
 import { pendingGuestMessageCount } from "@t3tools/contracts";
 import { applyThreadPullRequestLinkUpdate } from "../sourceControl/threadPullRequests.ts";
 import { projectTurnItemForWire } from "./WireProjection.ts";
@@ -431,6 +432,13 @@ export interface ProjectionStoreV2Shape {
   readonly searchThread: (
     input: OrchestrationV2SearchThreadInput,
   ) => Effect.Effect<OrchestrationV2SearchThreadResult, ProjectionStoreV2Error>;
+  readonly getDeletionSweepThreadIds: () => Effect.Effect<
+    ReadonlyArray<ThreadId>,
+    ProjectionStoreV2Error
+  >;
+  readonly getDescendantThreadIds: (
+    threadId: ThreadId,
+  ) => Effect.Effect<ReadonlyArray<ThreadId>, ProjectionStoreV2Error>;
   readonly getThreadAttachmentIds: (
     threadId: ThreadId,
   ) => Effect.Effect<ReadonlyArray<string>, ProjectionStoreV2Error>;
@@ -1874,6 +1882,18 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
       Effect.fnUntraced(
         function* (event) {
+          const tombstoneEvent =
+            (event.type === "thread.created" || event.type === "thread.deleted") &&
+            event.payload.historyDeletion?.purged === true;
+          if (!tombstoneEvent) {
+            const protectedIds =
+              event.type === "context-transfer.created" || event.type === "context-transfer.updated"
+                ? [event.threadId, event.payload.sourceThreadId, event.payload.targetThreadId]
+                : [event.threadId];
+            const purged = yield* sql`SELECT 1 FROM orchestration_v2_projection_threads
+              WHERE thread_id IN ${sql.in(protectedIds)} AND json_extract(payload_json, '$.historyDeletion.purged') = 1 LIMIT 1`;
+            if (purged.length > 0) return;
+          }
           switch (event.type) {
             case "thread.pull-request-link-updated": {
               const thread = yield* getThread(event.threadId);
@@ -7002,6 +7022,22 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
 
     return {
       apply,
+      getDeletionSweepThreadIds: () =>
+        sql<{ thread_id: string }>`SELECT thread_id FROM orchestration_v2_projection_threads
+        WHERE deleted_at IS NOT NULL AND json_extract(payload_json, '$.historyDeletion.status') = 'complete'
+        AND COALESCE(json_extract(payload_json, '$.historyDeletion.purged'), 0) = 0`.pipe(
+          NodeSqliteClient.readOnly,
+          Effect.map((rows) => rows.map((row) => ThreadId.make(row.thread_id))),
+          Effect.mapError(
+            (cause) =>
+              new ProjectionStoreReadError({ threadId: ThreadId.make("deletion-sweep"), cause }),
+          ),
+        ),
+      getDescendantThreadIds: (threadId) =>
+        descendantThreadIds(sql, threadId).pipe(
+          NodeSqliteClient.readOnly,
+          Effect.mapError((cause) => new ProjectionStoreReadError({ threadId, cause })),
+        ),
       getShellSnapshot: readOnReader(getShellSnapshot),
       listActiveSubagentThreadIds: readOnReader(listActiveSubagentThreadIds),
       countThreads: readOnReader(countThreads),

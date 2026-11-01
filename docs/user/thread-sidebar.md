@@ -292,16 +292,19 @@ back the standard rows.
 ## Delete a conversation
 
 Choose **Delete** from the thread menu and confirm. In this build, Delete removes
-the T3 conversation and its linked local Codex and Claude histories, including
-histories from earlier provider selections. Histories from other providers remain.
+the conversation and its child conversations, including helper agents, side chats,
+and forks. It removes their T3 server history, search entries, provider logs,
+attachments, terminal history, owned checkpoints, and unshared local Codex/Claude
+histories, including histories from earlier provider selections. Histories from
+other providers remain.
 Confirmation is required even if it was previously disabled.
 
 The thread stays visible while deletion finishes. If part of the deletion fails,
 its message explains that deletion is incomplete; choose **Delete** again to retry.
-A history shared with a retained thread is kept and prevents complete deletion.
-A thread cannot accept new work while deletion is in progress; after a failed
-attempt it works normally again until you retry. Settle and Archive preserve
-native conversation history.
+A history shared with a retained thread is kept without blocking deletion of the
+selected conversation. New work is blocked during deletion and after a partial
+failure because some history may already be gone. Archive remains available after
+a failed attempt. Settle and Archive do not delete conversation history.
 
 History deletion uses the provider's configured storage on the server machine.
 It does not search old provider homes or backups, erase cloud conversations, or
@@ -309,6 +312,9 @@ remove project files. Existing optional worktree cleanup remains a separate acti
 Removing a whole project retains its existing app-only cleanup behavior; delete
 individual threads first when you also want their local provider histories removed.
 Saved usage remains subject to the existing 92-day cache-retention policy.
+Shared diagnostic logs and backups are outside this cleanup. Deletion is not a
+secure erase. Existing background database maintenance can reclaim freed disk
+space; a full database rebuild is not performed after each deletion.
 
 ## Side chats
 

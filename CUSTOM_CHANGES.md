@@ -236,12 +236,12 @@ Two desktop settings tests create symlink fixtures and skip when Windows cannot
 create links without Developer Mode. They use the repository's existing
 capability probe; the skipped cases are not counted as verified on this host.
 
-The current Windows artifact has passed focused deletion regressions, server
-typechecking, packaging checks, per-user installation, installed-payload hash
-comparison, and startup health checks. The owner accepted its appearance and
-personal setup. Real-provider conversations/deletion and speech playback have
-not been verified on that rebuilt installed artifact; earlier successful checks
-belong to earlier builds. Other-machine installation remains untested.
+Acceptance distinguishes source regression tests, packaged startup, and checks
+against the installed profile. The deletion repair was exercised by the installed
+app against preserved deleted conversations and helper descendants; read-only
+before/after checks verified removal and preservation of the kept conversation.
+Fresh provider interaction, a new end-to-end UI deletion, speech playback, and
+other-machine installation require their own acceptance evidence.
 
 Exact build identities, per-build results, network captures, and the history of
 fixes are kept in the private build record under `docs/local`, which is ignored
@@ -252,34 +252,42 @@ its findings and the fixes applied, is in
 
 ### Synchronized local conversation deletion
 
-Delete addresses every recorded Codex and Claude native history associated with
-the thread, including histories from earlier provider selections. Confirmation is
-always required. The server records deletion progress durably, waits for provider
-shutdown and usage-cache persistence, then removes histories as an outbox effect.
-The RPC returns as soon as the request is recorded; clients follow progress
-through the thread shell, which the sidebar, chat view, and mobile list display.
+Delete requires confirmation and recursively includes child conversations, including
+provider helper agents, side chats, and forks. Provider shutdown precedes cleanup.
+The conversation remains visible with deletion progress; failed cleanup can be
+retried with Delete. New agent work is blocked after a partial deletion.
 
-A partial failure keeps the thread visible and usable, and marks it so Delete can
-be chosen again to retry only the unfinished targets. Histories referenced by
-retained threads, including native children, are protected. Other providers'
-native histories remain, as the confirmation states. Settle, Archive, and
-Unarchive do not invoke native deletion. Project removal keeps the upstream
-app-only cleanup.
+Cleanup removes recorded local Codex/Claude histories, empty Claude session-env
+folders, T3 provider logs and rotations, attachments, thread-bound scheduled tasks,
+terminal history, and owned Git checkpoint refs. Shared resources needed by retained
+conversations are protected. Project files, normal Git branches/tags/commits, and
+GitHub repositories are untouched. Archive, Unarchive, Settle, and project removal
+retain their existing behavior.
 
-Codex deletion first probes whether the installed Codex honors the
-`ancestorThreadId` listing filter, which newer releases support but the vendored
-protocol schema does not declare. When either archive-state probe finds that the
-filter is ignored, both active and archived histories are listed unfiltered and
-combined before following `parentThreadId` links. This protects descendants whose
-parent chains cross archive states. Parent deletion also waits for independently
-deleting side chats; a pending or failed child prevents the parent from disappearing.
-Claude deletion works on the real
-path of the Claude home so junctions and redirected profiles behave normally, and
-still refuses to follow links inside the history folders.
+External cleanup steps record completion durably. Once they succeed, the final
+transaction purges thread-owned projection rows, message search entries, receipts,
+and conversation events. Two sanitized replay anchors and a sanitized thread shell
+remain so rebuilds and reconnecting clients recognize deletion. They contain a
+placeholder title and routing/deletion metadata, not the conversation's original
+title, messages, workspace paths, or provider history IDs. The active deletion
+outbox lease is removed when its worker settles. Late events cannot restore content.
 
-Deletion uses each provider instance's configured local storage. It does not
-search moved histories in old provider homes, backups, global prompt indexes, or
-cloud accounts, and it is not a secure erase.
+Startup queues this same cleanup for previously completed soft deletions and their
+descendants. Development snapshots must use disposable provider homes and project
+repositories before starting a server: changing T3 home alone does not isolate
+provider histories or Git refs.
+
+Usage accounting, shared server trace logs, other providers' native histories,
+cloud accounts, backups, old provider homes, and comprehensive client-cache cleanup
+are outside this server-side cleanup. Active clients retain their existing cache
+removal behavior. Existing database maintenance incrementally returns free pages
+to disk on databases with incremental auto-vacuum enabled; no full VACUUM is added
+after each deletion. This is not secure erase, and removing Git refs does not
+immediately erase Git objects.
+
+Codex deletion probes ancestor filtering and falls back to tracing parent links
+across active and archived histories. Claude deletion resolves redirected home
+paths and refuses links inside its history and session-environment folders.
 
 ## 7. Possible independent upstream proposals
 
@@ -326,8 +334,10 @@ network traces, real conversation screenshots, speech adapters, and the test
 profile are not part of this shareable document.
 
 Open review items are listed in the [independent review](docs/custom-build/independent-review-2026-10-31.md#for-the-next-reviewer).
-They include the sticky incomplete-deletion label and the sidebar's hover-only
-deletion indicator, as well as deliberate choices about heading sizes and menus.
+The sidebar's hover-only deletion indicator and choices about heading sizes and
+menus remain unchanged. A failed partial deletion intentionally stays marked and
+blocks new provider work until retry completes; removed history cannot be restored
+by clearing that marker.
 
 ## 9. Maintaining and building this variant
 
@@ -381,6 +391,11 @@ preferences and speech defaults therefore differ from the saved test profile.
 Each machine needs its own Codex/Claude installation and sign-in; existing working
 installations/sign-ins can be reused. The installer does not transfer accounts,
 conversations, settings, or this machine's custom speech-hook changes.
+
+Before launching a development snapshot or retained test profile after this deletion
+upgrade, isolate its provider homes and referenced project repositories. Startup
+cleanup acts on those external paths; a different T3 home alone is insufficient.
+Never use the installed profile as a development server's database.
 
 #### Optional readability and speech preferences
 

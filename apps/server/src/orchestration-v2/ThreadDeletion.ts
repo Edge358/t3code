@@ -46,12 +46,14 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
       projection.thread.historyDeletion !== undefined);
   const historyDeletion = deletingHistory
     ? {
+        completedCleanup: projection.thread.historyDeletion?.completedCleanup,
         requestId: input.historyDeletionRequestId ?? command.commandId,
         status: "pending" as const,
         message: "Deleting local conversation histories. Project files are kept.",
         targets: targets.map((target) => {
           const previous = projection.thread.historyDeletion?.targets.find(
             (entry) =>
+              projection.thread.deletedAt === null &&
               entry.providerThreadId === target.id &&
               entry.nativeId === target.nativeThreadRef?.nativeId,
           );
@@ -111,6 +113,9 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
       updatedAt: now,
     },
   });
+
+  if (input.finishHistoryDeletion && historyDeletion?.completedCleanup?.length === 6)
+    return { events, effects };
 
   const activeRuns = projection.runs.filter((run) =>
     ["preparing", "queued", "starting", "running", "waiting"].includes(run.status),

@@ -1,3 +1,4 @@
+import { purgeCompletedThreads } from "./ThreadPurge.ts";
 import {
   CommandId,
   type OrchestrationV2Run,
@@ -337,19 +338,28 @@ const layerBase: Layer.Layer<
             : [],
         ),
       );
-      return Effect.forEach(
-        events,
-        (event): Effect.Effect<OrchestrationV2DomainEvent, unknown> =>
-          event.type === "turn-item.updated"
-            ? turnItemPositions
-                .normalize(
-                  event.payload,
-                  event.payload.runId === null ? undefined : runOrdinals.get(event.payload.runId),
-                )
-                .pipe(Effect.map((payload) => ({ ...event, payload })))
-            : Effect.succeed(event),
-        { concurrency: 1 },
-      );
+      return Effect.gen(function* () {
+        if (events.length === 0) return [];
+        const purged = yield* sql<{
+          thread_id: string;
+        }>`SELECT thread_id FROM orchestration_v2_projection_threads
+          WHERE thread_id IN ${sql.in([...new Set(events.map((event) => event.threadId))])}
+            AND json_extract(payload_json, '$.historyDeletion.purged') = 1`;
+        const deleted = new Set(purged.map((row) => row.thread_id));
+        return yield* Effect.forEach(
+          events.filter((event) => !deleted.has(event.threadId)),
+          (event): Effect.Effect<OrchestrationV2DomainEvent, unknown> =>
+            event.type === "turn-item.updated"
+              ? turnItemPositions
+                  .normalize(
+                    event.payload,
+                    event.payload.runId === null ? undefined : runOrdinals.get(event.payload.runId),
+                  )
+                  .pipe(Effect.map((payload) => ({ ...event, payload })))
+              : Effect.succeed(event),
+          { concurrency: 1 },
+        );
+      });
     };
 
     const applyStoredEvents =
@@ -687,10 +697,22 @@ const layerBase: Layer.Layer<
           const cancelledEffectIds =
             input.cancelUnsettledEffects === undefined
               ? []
-              : yield* effectOutbox.cancelUnsettled({
-                  threadId: input.threadId,
-                  ...input.cancelUnsettledEffects,
-                });
+              : (yield* Effect.forEach(
+                  input.commandType === "thread.delete"
+                    ? [...new Set(input.events.map((event) => event.threadId))]
+                    : [input.threadId],
+                  (threadId) =>
+                    effectOutbox.cancelUnsettled({ threadId, ...input.cancelUnsettledEffects! }),
+                )).flat();
+          yield* purgeCompletedThreads(
+            sql,
+            normalized.flatMap((event) =>
+              event.type === "thread.deleted" &&
+              event.payload.historyDeletion?.status === "complete"
+                ? [event.threadId]
+                : [],
+            ),
+          );
           return { receipt, storedEvents, outcomes, committed: true as const, cancelledEffectIds };
         }),
         (result) =>

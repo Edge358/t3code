@@ -15,7 +15,14 @@ import * as TerminalManager from "../terminal/Manager.ts";
 export class ResourceCleanupError extends Schema.TaggedError<ResourceCleanupError>()(
   "ResourceCleanupError",
   {
-    operation: Schema.Literals(["terminal", "preview", "attachment", "scheduled-tasks"]),
+    operation: Schema.Literals([
+      "terminal",
+      "preview",
+      "attachment",
+      "scheduled-tasks",
+      "checkpoints",
+      "logs",
+    ]),
     threadId: Schema.optional(Schema.String),
     attachmentId: Schema.optional(Schema.String),
     cause: Schema.Defect(),

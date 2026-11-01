@@ -1,3 +1,5 @@
+import * as ThreadResourceCleanup from "./ThreadResourceCleanup.ts";
+import * as ResourceCleanup from "./ResourceCleanupService.ts";
 import {
   CommandId,
   ProviderSessionId,
@@ -44,6 +46,8 @@ export const layer = Layer.effect(
     const projects = yield* ProjectStore.ProjectStoreV2;
     const usage = yield* UsageService.UsageService;
     const sql = yield* SqlClient.SqlClient;
+    const cleanup = yield* ResourceCleanup.ResourceCleanupService;
+    const threadCleanup = yield* ThreadResourceCleanup.ThreadResourceCleanup;
     const executeOne = Effect.fn("HistoryDeletionService.executeOne")(
       function* (effect: OrchestrationEffectV2) {
         const projection = yield* projections.getThreadRecords(effect.threadId, [
@@ -115,6 +119,13 @@ export const layer = Layer.effect(
               });
             yield* sessions.awaitClosed(providerSessionId);
           }
+          const descendantsAfterShutdown = yield* projections.getDescendantThreadIds(
+            effect.threadId,
+          );
+          if (descendantsAfterShutdown.some((id) => !deletionThreadIds.includes(id)))
+            return yield* new HistoryDeletionError({
+              cause: "A descendant appeared during shutdown. Retry Delete to include it.",
+            });
           yield* usage.prepareDeletion;
           const project = yield* projects.get(projection.thread.projectId);
           const records = yield* projections.getThreadRecords(effect.threadId, [
@@ -244,10 +255,7 @@ export const layer = Layer.effect(
             });
           }
           const remaining = current.targets.filter(
-            (target) =>
-              target.status === "failed" ||
-              target.status === "retained" ||
-              target.status === "pending",
+            (target) => target.status === "failed" || target.status === "pending",
           );
           const summary = current.targets
             .map(
@@ -255,9 +263,53 @@ export const layer = Layer.effect(
                 `${target.driver === "claudeAgent" ? "Claude" : target.driver}: ${target.status}`,
             )
             .join("; ");
-          const sharedHistoryMessage = remaining.some((target) => target.status === "retained")
+          const sharedHistoryMessage = current.targets.some(
+            (target) => target.status === "retained",
+          )
             ? " Shared histories are kept."
             : "";
+          if (remaining.length === 0) {
+            const unsettled = yield* sql`SELECT 1 FROM orchestration_v2_effect_outbox
+              WHERE thread_id = ${effect.threadId} AND status IN ('pending', 'running')
+                AND effect_type <> 'thread.history-delete' LIMIT 1`;
+            if (unsettled.length > 0)
+              return yield* new HistoryDeletionError({
+                cause: "Conversation work has not settled.",
+              });
+            const attachmentIds = yield* projections.getThreadAttachmentIds(effect.threadId);
+            const protectedAttachments = new Set<string>();
+            for (const attachmentId of attachmentIds) {
+              const references = yield* sql`SELECT 1 FROM (
+                SELECT thread_id, payload_json FROM orchestration_v2_projection_messages
+                UNION ALL SELECT thread_id, payload_json FROM orchestration_v2_projection_turn_items
+                UNION ALL SELECT thread_id, payload_json FROM orchestration_v2_projection_threads
+              ) content JOIN orchestration_v2_projection_threads t ON t.thread_id = content.thread_id
+              WHERE t.deleted_at IS NULL AND t.thread_id NOT IN ${sql.in(deletionThreadIds)}
+                AND instr(content.payload_json, ${attachmentId}) > 0 LIMIT 1`;
+              if (references.length > 0) protectedAttachments.add(attachmentId);
+            }
+            const steps = [
+              ["scheduled-tasks", cleanup.cleanupScheduledTasks(effect.threadId)],
+              ["terminal", cleanup.cleanupTerminals(effect.threadId)],
+              ["preview", cleanup.cleanupPreviews(effect.threadId)],
+              [
+                "attachments",
+                cleanup.cleanupAttachments(
+                  attachmentIds.filter((id) => !protectedAttachments.has(id)),
+                ),
+              ],
+              ["checkpoints", threadCleanup.cleanupCheckpoints(effect.threadId, deletionThreadIds)],
+              ["logs", threadCleanup.cleanupLogs(effect.threadId, deletionThreadIds)],
+            ] as const;
+            for (const [step, operation] of steps) {
+              if (current.completedCleanup?.includes(step)) continue;
+              yield* operation;
+              yield* save({
+                ...current,
+                completedCleanup: [...(current.completedCleanup ?? []), step],
+              });
+            }
+          }
           yield* save({
             ...current,
             status: remaining.length > 0 ? "failed" : "complete",
@@ -272,7 +324,7 @@ export const layer = Layer.effect(
               ...current,
               status: "failed",
               message:
-                "Conversation deletion could not finish stopping provider work or saving usage. Stop any other active conversations and use Delete again to retry. Project files were kept.",
+                "Conversation cleanup could not finish. Project files were kept. Use Delete again to retry the unfinished cleanup.",
             }).pipe(
               Effect.tap(() =>
                 Effect.logWarning("Conversation history deletion preparation failed", { cause }),
@@ -303,9 +355,10 @@ export const layer = Layer.effect(
               state.requestId !== effect.commandId
             )
               continue;
-            if (threadId === effect.threadId) {
+            {
+              const descendantIds = yield* projections.getDescendantThreadIds(threadId);
               const children = yield* Effect.forEach(
-                group.filter((id) => id !== threadId),
+                descendantIds.filter((id) => group.includes(id)),
                 (id) => projections.getThread(id),
               );
               if (children.some((child) => child.deletedAt === null)) {
@@ -319,10 +372,10 @@ export const layer = Layer.effect(
                     ...state,
                     status: "failed",
                     message:
-                      "A side chat could not be fully deleted. Its remaining history was kept. Use Delete again to retry.",
+                      "A descendant conversation could not be fully deleted. Its remaining history was kept. Use Delete again to retry.",
                   },
                 });
-                return;
+                continue;
               }
             }
             yield* executeOne({

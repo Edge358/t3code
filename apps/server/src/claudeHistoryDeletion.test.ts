@@ -19,6 +19,8 @@ it.each(["complete", "orphaned-children", "shared-child", "junction-home"])(
     try {
       if (configDir !== home) await NodeFSP.symlink(home, configDir, "junction");
       const project = NodePath.join(home, "projects", "disposable-project");
+      const sessionEnvironment = NodePath.join(home, "session-env", target);
+      await NodeFSP.mkdir(sessionEnvironment, { recursive: true });
       const child = NodePath.join(project, target, "subagents");
       await NodeFSP.mkdir(child, { recursive: true });
       await NodeFSP.writeFile(NodePath.join(child, "agent-test.jsonl"), "synthetic child\n");
@@ -62,9 +64,12 @@ it.each(["complete", "orphaned-children", "shared-child", "junction-home"])(
       expect(await NodeFSP.readFile(NodePath.join(project, `${neighbor}.jsonl`), "utf8")).toBe(
         "keep this history\n",
       );
+      await expect(NodeFSP.stat(sessionEnvironment)).rejects.toMatchObject({ code: "ENOENT" });
+      await NodeFSP.mkdir(sessionEnvironment);
       const retry = run();
       expect(retry.status, retry.stderr).toBe(0);
       expect(JSON.parse(retry.stdout)).toBe("absent");
+      await expect(NodeFSP.stat(sessionEnvironment)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       if (configDir !== home) await NodeFSP.unlink(configDir).catch(() => NodeFSP.rmdir(configDir));
       await NodeFSP.rm(home, { recursive: true, force: true });

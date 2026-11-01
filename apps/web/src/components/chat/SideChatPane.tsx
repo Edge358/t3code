@@ -94,7 +94,7 @@ export default function SideChatPane(props: {
       api.dialogs.confirm(
         [
           `Delete side chat "${shell.title}"?`,
-          "This deletes its T3 conversation and linked local Codex and Claude histories. Other provider histories, project files, and cloud conversations are kept.",
+          "This permanently deletes the conversation and its child conversations, their T3 server data, logs, checkpoints, and unshared local Codex and Claude histories. Project files, shared resources, other provider histories, and cloud data are kept. This is not a secure erase.",
         ].join("\n"),
         { variant: "destructive" },
       ),

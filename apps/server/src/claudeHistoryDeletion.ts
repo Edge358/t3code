@@ -18,12 +18,28 @@ export async function deleteClaudeHistory(
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(sessionId)) {
     throw new Error("Claude history deletion requires a native session UUID.");
   }
-  const projects = NodePath.resolve(
+  const home = NodePath.resolve(
     process.env.CLAUDE_CONFIG_DIR || NodePath.join(NodeOS.homedir(), ".claude"),
-    "projects",
   );
+  const removeSessionEnvironment = async () => {
+    const parent = NodePath.join(home, "session-env");
+    const parentInfo = await exists(parent);
+    if (parentInfo === undefined) return;
+    if (parentInfo.isSymbolicLink())
+      throw new Error("Claude session environment storage is a link.");
+    const target = NodePath.join(await NodeFSP.realpath(parent), sessionId);
+    const info = await exists(target);
+    if (info === undefined) return;
+    if (info.isSymbolicLink() || !info.isDirectory())
+      throw new Error("Claude session environment is not a regular directory.");
+    await NodeFSP.rmdir(target);
+  };
+  const projects = NodePath.join(home, "projects");
   const projectRoot = await exists(projects);
-  if (projectRoot === undefined) return "absent";
+  if (projectRoot === undefined) {
+    await removeSessionEnvironment();
+    return "absent";
+  }
   if (projectRoot.isSymbolicLink()) {
     throw new Error("Claude history storage is a link; deletion was not attempted.");
   }
@@ -43,7 +59,10 @@ export async function deleteClaudeHistory(
       throw new Error("Claude session history is a link.");
     if (file !== undefined || folder !== undefined) matches.push({ transcript, children });
   }
-  if (matches.length === 0) return "absent";
+  if (matches.length === 0) {
+    await removeSessionEnvironment();
+    return "absent";
+  }
   if (matches.length > 1)
     throw new Error("Claude session ID appears in multiple project histories.");
   const match = matches[0]!;
@@ -66,5 +85,6 @@ export async function deleteClaudeHistory(
   if (children?.isSymbolicLink()) throw new Error("Claude child history changed to a link.");
   if (children) await NodeFSP.rm(match.children, { recursive: true, force: true });
   if (await exists(match.children)) throw new Error("Claude child history remains after deletion.");
+  await removeSessionEnvironment();
   return "deleted";
 }

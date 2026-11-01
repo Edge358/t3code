@@ -177,7 +177,7 @@ function confirmThreadDeletion(
 ) {
   if (!checkThreadOperationPermission(thread, actionFailureTitle("delete"))) return;
   const title = "Delete thread?";
-  const message = `“${thread.title}” will be permanently deleted, including its terminal history and linked local Codex and Claude histories. Other provider histories, project files, and cloud conversations are kept.`;
+  const message = `“${thread.title}” and its child conversations will be permanently deleted, including T3 server data, logs, checkpoints, and unshared local Codex and Claude histories. Project files, shared resources, other provider histories, and cloud data are kept. This is not a secure erase.`;
   Dialog.confirm({
     title,
     message,

@@ -1,3 +1,6 @@
+import * as VcsProcess from "../vcs/VcsProcess.ts";
+import * as ThreadResourceCleanup from "./ThreadResourceCleanup.ts";
+import * as CheckpointStore from "../checkpointing/CheckpointStore.ts";
 import * as GuestShareService from "../guest/GuestShareService.ts";
 import * as UsageLimitRecoveryWorker from "./UsageLimitRecoveryWorker.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
@@ -403,6 +406,11 @@ export const layerProduction = Layer.mergeAll(
   layerAgentSessionImporterProvided,
   EffectOutbox.layerPruneWorker.pipe(Layer.provide(EffectOutbox.layer)),
 ).pipe(
+  Layer.provide(
+    ThreadResourceCleanup.layer.pipe(
+      Layer.provide(Layer.merge(CheckpointStore.layer, VcsProcess.layer)),
+    ),
+  ),
   Layer.provide(ResourceCleanupService.layer.pipe(Layer.provide(layerScheduledTaskProvided))),
   Layer.provide(Scheduler.layer),
   Layer.provideMerge(layerEventInfrastructure),

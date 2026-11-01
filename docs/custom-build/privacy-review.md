@@ -261,13 +261,19 @@ authorized disposable histories; retained histories were checked independently.
 - Comprehensive packaged external-media/link tests, all provider/tool/network
   combinations, other-machine installation, laptop behavior and remote/WSL speech
   remain unverified. The rebuilt desktop installer and startup were checked, and
-  the owner accepted its appearance/setup; real-provider conversations/deletion
-  and speech playback on that installed artifact remain unverified.
-- Synchronized local Codex/Claude deletion passed focused tests and manual
-  Windows checks, including a partial-failure retry. Other provider histories
-  remain unsupported. Archive and project removal preserve provider histories.
-  These operations are not cloud deletion or secure erase. See
-  [deletion validation](../../CUSTOM_CHANGES.md#synchronized-local-conversation-deletion).
+  the owner accepted its appearance/setup. The installed deletion sweep was checked
+  against preserved old histories and a kept conversation. Fresh provider interaction,
+  a new end-to-end UI deletion, and speech playback remain separate acceptance checks.
+- Local conversation deletion now includes descendants, server database content,
+  message search entries, provider logs, owned checkpoints, and existing attachment,
+  terminal, and scheduled-task cleanup. Sanitized replay/deletion records remain;
+  shared resources are protected. Usage accounting, shared trace logs, comprehensive
+  client-cache cleanup, other provider histories, backups, and cloud data are outside
+  this scope. Existing incremental database maintenance reclaims free disk space;
+  it is not a secure-erasure guarantee for SQLite or unreachable Git objects.
+  Historical manual checks do not certify the new build; current validation is recorded
+  in the private build record. See
+  [deletion behavior](../../CUSTOM_CHANGES.md#synchronized-local-conversation-deletion).
 - Future upstream/provider upgrades can change behavior; the restrictions need
   review and regression checks when rebased. This build disables auto-updating.
 

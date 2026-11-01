@@ -439,6 +439,19 @@ const LenientThreadOpens = Schema.NullOr(OrchestrationV2ThreadOpens).pipe(
 );
 
 export const ThreadHistoryDeletion = Schema.Struct({
+  purged: Schema.optional(Schema.Boolean),
+  completedCleanup: Schema.optional(
+    Schema.Array(
+      Schema.Literals([
+        "scheduled-tasks",
+        "terminal",
+        "preview",
+        "attachments",
+        "checkpoints",
+        "logs",
+      ]),
+    ),
+  ),
   requestId: CommandId,
   status: Schema.Literals(["pending", "failed", "complete"]),
   message: Schema.String,

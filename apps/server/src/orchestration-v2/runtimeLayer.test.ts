@@ -1,3 +1,4 @@
+import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import * as UsageService from "../usage/UsageService.ts";
 import { SourceControlProviderKind } from "@t3tools/contracts";
 import { limitRecoveryCommand } from "./UsageLimitRecoveryWorker.ts";
@@ -89,7 +90,16 @@ import * as ThreadLaunchService from "./ThreadLaunchService.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 
-const layerPlatformTest = Layer.merge(
+const layerPlatformTest = Layer.mergeAll(
+  Layer.succeed(ProviderEventLoggers.ProviderEventLoggers, {
+    native: {
+      filePath: "test",
+      write: () => Effect.void,
+      close: () => Effect.void,
+      removeThread: () => Effect.void,
+    },
+    canonical: undefined,
+  }),
   NodeServices.layer,
   Layer.mock(SourceControlProviderRegistry.SourceControlProviderRegistry)({
     resolveLink: () => Effect.die("unused title link"),
@@ -274,27 +284,30 @@ const moveProject = (projectId: ProjectId, workspaceRoot: string, updatedAt: str
     }),
   );
 
-const layerTest = Layer.mergeAll(
-  RuntimeLayer.layer.pipe(
-    Layer.provide(Layer.mock(UsageService.UsageService)({ prepareDeletion: Effect.void })),
-  ),
-  RuntimeLayer.layerEventSink,
-  ProjectStore.layer,
-  ProjectionStore.layer,
-  EffectOutbox.layer,
-  ThreadCommandExecutor.layer,
-).pipe(
-  Layer.provide(McpSessionRegistryTestkit.layer),
-  Layer.provide(McpProviderSessions.layer),
-  Layer.provide(SqlitePersistence.layerMemory),
-  Layer.provide(layerCheckpointStoreTest),
-  Layer.provide(layerServerConfig),
-  Layer.provide(ServerSettings.layerTest()),
-  Layer.provide(layerTestProviderInstanceRegistry),
-  Layer.provide(layerGitWorkflowTest),
-  Layer.provide(layerProjectServiceTest),
-  Layer.provide(layerPlatformTest),
-);
+const layerTestWithSettings = (settings: Parameters<typeof ServerSettings.layerTest>[0] = {}) =>
+  Layer.mergeAll(
+    RuntimeLayer.layer.pipe(
+      Layer.provide(Layer.mock(UsageService.UsageService)({ prepareDeletion: Effect.void })),
+    ),
+    RuntimeLayer.layerEventSink,
+    ProjectStore.layer,
+    ProjectionStore.layer,
+    EffectOutbox.layer,
+    ThreadCommandExecutor.layer,
+  ).pipe(
+    Layer.provide(McpSessionRegistryTestkit.layer),
+    Layer.provide(McpProviderSessions.layer),
+    Layer.provide(SqlitePersistence.layerMemory),
+    Layer.provide(layerCheckpointStoreTest),
+    Layer.provide(layerServerConfig),
+    Layer.provide(ServerSettings.layerTest(settings)),
+    Layer.provide(layerTestProviderInstanceRegistry),
+    Layer.provide(layerGitWorkflowTest),
+    Layer.provide(layerProjectServiceTest),
+    Layer.provide(layerPlatformTest),
+  );
+
+const layerTest = layerTestWithSettings();
 
 const layerLegacyImportTest = RuntimeLayer.layer.pipe(
   Layer.provide(Layer.mock(UsageService.UsageService)({ prepareDeletion: Effect.void })),
@@ -705,9 +718,10 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
           yield* Deferred.succeed(releaseUpdate, undefined);
           yield* Fiber.join(updateFiber);
           yield* Fiber.join(deleteFiber);
+          yield* (yield* EffectWorker.OrchestrationEffectWorkerV2).drain();
           const sideChat = yield* orchestrator.getThreadProjection(sideChatId);
           assert.isNotNull(sideChat.thread.deletedAt);
-          assert.equal(sideChat.thread.title, "Updated before deletion");
+          assert.equal(sideChat.thread.title, "Deleted conversation");
         }).pipe(
           Effect.ensuring(
             Effect.sync(() => {
@@ -811,6 +825,7 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
         yield* Deferred.succeed(releaseDelete, undefined);
         yield* Fiber.join(deleteFiber);
         yield* Fiber.join(forkFiber);
+        yield* (yield* EffectWorker.OrchestrationEffectWorkerV2).drain();
         assert.isNotNull((yield* orchestrator.getThreadProjection(parentId)).thread.deletedAt);
         assert.isNotNull((yield* orchestrator.getThreadProjection(sideChatId)).thread.deletedAt);
       }).pipe(Effect.ensuring(Effect.sync(() => lockSpy.mockRestore())));
@@ -2660,6 +2675,10 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         commandId: CommandId.make("runtime-layer-lifecycle-delete"),
         threadId,
       });
+      yield* (yield* EffectWorker.OrchestrationEffectWorkerV2).drain();
+      const removalEvent = yield* (yield* EventSink.EventSinkV2)
+        .stream({ threadId, eventType: "thread.deleted", afterSequence: remove.sequence })
+        .pipe(Stream.runHead, Effect.map(Option.getOrThrow));
       const deletedShell = yield* orchestrator.getShellSnapshot();
       assert.notInclude(
         deletedShell.threads.map((thread) => thread.id),
@@ -2671,25 +2690,22 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       );
       assert.deepEqual(
         shellStreamItemFromThreadShell({
-          stored: remove.storedEvents[0]!,
+          stored: removalEvent,
           shell: yield* orchestrator.getThreadShell(threadId),
         }),
         {
           kind: "thread.removed",
-          sequence: remove.sequence,
+          sequence: removalEvent.sequence,
           location: "active",
           threadId,
         },
       );
 
       const projection = yield* orchestrator.getThreadProjection(threadId);
-      assert.equal(projection.thread.title, "Renamed lifecycle thread");
-      assert.equal(projection.thread.branch, "feature/v2");
-      assert.equal(projection.thread.worktreePath, "/tmp/t3-v2-worktree");
-      assert.equal(projection.thread.runtimeMode, "approval-required");
-      assert.equal(projection.thread.interactionMode, "plan");
-      assert.equal(projection.thread.modelSelection.model, "gpt-5.5");
-      assert.isNotNull(projection.thread.archivedAt);
+      assert.equal(projection.thread.title, "Deleted conversation");
+      assert.isNull(projection.thread.branch);
+      assert.isNull(projection.thread.worktreePath);
+      assert.isNull(projection.thread.archivedAt);
       assert.isNotNull(projection.thread.deletedAt);
     }),
   );
@@ -5884,14 +5900,21 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
     }),
   );
 
-  it.effect.each([false, true])(
-    "restarts a continuation that failed before its prompt, unless stopped (%s)",
-    (stopped) =>
+  it.effect.each([
+    { enabled: true, stopped: false },
+    { enabled: true, stopped: true },
+    { enabled: false, stopped: false },
+    { enabled: false, stopped: true },
+  ])(
+    "retries a continuation that failed before its prompt only when enabled and not stopped (%j)",
+    ({ enabled, stopped }) =>
       Effect.gen(function* () {
         const orchestrator = yield* Orchestrator.OrchestratorV2;
         const eventSink = yield* EventSink.EventSinkV2;
         const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
-        const threadId = ThreadId.make(`runtime-layer-continuation-start-retry-${stopped}`);
+        const threadId = ThreadId.make(
+          `runtime-layer-continuation-start-retry-${enabled}-${stopped}`,
+        );
         const messageId = (key: string) => MessageId.make(`${threadId}:${key}`);
         yield* orchestrator.dispatch({
           type: "thread.create",
@@ -6039,8 +6062,12 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         }
         yield* TestClock.adjust("61 seconds");
         yield* worker.drain();
-        assert.lengthOf(yield* retriesOf, stopped ? 0 : 1);
-      }),
+        assert.lengthOf(yield* retriesOf, enabled && !stopped ? 1 : 0);
+      }).pipe(
+        Effect.provide(
+          Layer.fresh(layerTestWithSettings({ continueThreadsAfterServerUpdate: enabled })),
+        ),
+      ),
   );
 
   it.effect.each(["startup", "shutdown"] as const)(

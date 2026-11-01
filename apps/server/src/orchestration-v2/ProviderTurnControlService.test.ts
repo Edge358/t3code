@@ -208,6 +208,8 @@ it.effect(
       const layerProjection = Layer.succeed(
         ProjectionStore.ProjectionStoreV2,
         ProjectionStore.ProjectionStoreV2.of({
+          getDeletionSweepThreadIds: () => Effect.succeed([]),
+          getDescendantThreadIds: () => Effect.succeed([]),
           apply: () => Effect.void,
           getLimitRecoveryCandidates: () => Effect.die("unused getLimitRecoveryCandidates"),
           getLimitRecoveryWakeAt: () => Effect.die("unused getLimitRecoveryWakeAt"),

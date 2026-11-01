@@ -66,6 +66,7 @@ export interface EventNdjsonLogStore {
   readonly filePath: string;
   readonly logger: (stream: EventNdjsonStream) => ProviderEventLoggers.EventNdjsonLogger;
   readonly close: () => Effect.Effect<void>;
+  readonly removeThread: (threadId: ThreadId) => Effect.Effect<void, EventNdjsonLogDirectoryError>;
 }
 
 export interface EventNdjsonLogStoreOptions {
@@ -708,6 +709,34 @@ export const makeEventNdjsonLogStore = Effect.fnUntraced(function* (
   });
 
   const loggerViews = new Map<EventNdjsonStream, ProviderEventLoggers.EventNdjsonLogger>();
+  const deletedThreadIds = new Set<ThreadId>();
+  const removeThread = Effect.fn("EventNdjsonLogger.removeThread")(function* (threadId: ThreadId) {
+    const segment = resolveThreadSegment(threadId);
+    if (segment === GLOBAL_THREAD_SEGMENT) return;
+    yield* SynchronizedRef.updateEffect(stateRef, (state) =>
+      Effect.gen(function* () {
+        deletedThreadIds.add(threadId);
+        const pending = state.pending.filter((record) => record.threadSegment !== segment);
+        const sinks = new Map(state.sinks);
+        sinks.delete(segment);
+        const basename = NodePath.basename(providerLogPath(directory, filePrefix, segment));
+        const names = yield* fs.readDirectory(directory);
+        for (const name of names) {
+          if (
+            name === basename ||
+            (name.startsWith(`${basename}.`) && /^\d+$/.test(name.slice(basename.length + 1)))
+          )
+            yield* fs.remove(path.join(directory, name), { force: true });
+        }
+        return {
+          ...state,
+          pending,
+          pendingBytes: pending.reduce((sum, record) => sum + record.bytes, 0),
+          sinks,
+        };
+      }),
+    ).pipe(Effect.mapError((cause) => new EventNdjsonLogDirectoryError({ directory, cause })));
+  });
   const logger = (stream: EventNdjsonStream): ProviderEventLoggers.EventNdjsonLogger => {
     const existing = loggerViews.get(stream);
     if (existing) return existing;
@@ -726,7 +755,7 @@ export const makeEventNdjsonLogStore = Effect.fnUntraced(function* (
       const line = `[${observedAt}] ${resolveStreamLabel(stream)}: ${payload}\n`;
       const bytes = Buffer.byteLength(line);
       const action = yield* SynchronizedRef.modifyEffect(stateRef, (state) => {
-        if (state.closed) {
+        if (state.closed || (threadId !== null && deletedThreadIds.has(threadId))) {
           return Effect.succeed([{ flush: false }, state] as const);
         }
         const pending = state.pending;
@@ -757,10 +786,11 @@ export const makeEventNdjsonLogStore = Effect.fnUntraced(function* (
       filePath,
       write,
       close: () => Effect.void,
+      removeThread,
     } satisfies ProviderEventLoggers.EventNdjsonLogger;
     loggerViews.set(stream, view);
     return view;
   };
 
-  return { filePath, logger, close } satisfies EventNdjsonLogStore;
+  return { filePath, logger, close, removeThread } satisfies EventNdjsonLogStore;
 });

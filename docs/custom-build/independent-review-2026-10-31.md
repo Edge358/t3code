@@ -1,10 +1,13 @@
 # Independent review of the private Windows build (2026-10-31)
 
-> **2026-11-01 pre-commit checkpoint:** findings and work orders below preserve the original
-> review and its fix passes, not a list of all currently open defects. The overnight
-> fixes landed in `838090cc`. Later working-tree fixes protect Codex descendants
-> across archive states and make parent deletion depend on independently deleting
-> side chats. Include `git diff` when reviewing the current implementation.
+> **Current reading guidance:** findings and work orders below preserve the dated
+> review and its fix passes, not a list of currently open defects. The overnight
+> fixes landed in `838090cc`; the next source checkpoint is `f58d11f8`.
+> Subsequent deletion work includes all descendants and server-content cleanup.
+> A failed partial deletion now intentionally blocks new work until retry succeeds;
+> the historical suggestion to clear its marker and resume is superseded because
+> some history may already be removed. Archive remains available after failure.
+> Review subsequent commits and `git diff` for the current implementation.
 > Current validation limits are in [Custom changes](../../CUSTOM_CHANGES.md#6-verification-approach).
 
 This is a second-opinion review of the two local commits on `edge358-custom-build`
@@ -177,8 +180,10 @@ Where the risk is, in order:
    environment opt-outs (section C).
 
 Everything else in the commit is UI indicators, settings cleanup, launcher scripts, and
-documentation. Open on purpose: the sticky "Deletion incomplete" label (A2), the
-hover-only web sidebar indicator, and the taste calls in section D.
+documentation. At that historical checkpoint, the failed-deletion reverse state,
+hover-only indicator, and taste calls were left open. Current deletion semantics
+supersede the reverse-state proposal as explained at the top of this document;
+the hover-only indicator and taste choices remain unchanged.
 
 How it was verified before the commit: the focused test files beside each change,
 typecheck per package (`pnpm run typecheck` in `apps/server`, `apps/mobile`,

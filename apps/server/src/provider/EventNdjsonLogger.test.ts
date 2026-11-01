@@ -14,6 +14,7 @@ import * as Fiber from "effect/Fiber";
 import * as Logger from "effect/Logger";
 import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
+import { toSafeThreadAttachmentSegment } from "../attachmentStore.ts";
 
 import {
   makeEventNdjsonLogStore,
@@ -51,6 +52,42 @@ function parseLogLine(line: string) {
 }
 
 it.layer(NodeServices.layer)("EventNdjsonLogger", (it) => {
+  it.effect(
+    "deletes buffered and rotated thread logs without recreating them or removing neighbors",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const directory = yield* fs.makeTempDirectoryScoped({ prefix: "t3-delete-log-" });
+        const base = NodePath.join(directory, "events.log");
+        const store = yield* makeEventNdjsonLogStore(base);
+        const deleted = ThreadId.make("deleted");
+        const kept = ThreadId.make("kept");
+        yield* fs.writeFileString(ownedLogPath(base, deleted), "old transcript");
+        yield* fs.writeFileString(`${ownedLogPath(base, deleted)}.1`, "rotated transcript");
+        yield* store.logger("native").write({ text: "buffered transcript" }, deleted);
+        yield* store.logger("canonical").write({ text: "keep this" }, kept);
+        yield* store.removeThread(deleted);
+        yield* store.logger("native").write({ text: "late event" }, deleted);
+        const prefix = "helper-".padEnd(80, "a");
+        const oldHelper = ThreadId.make(`${prefix}-old`);
+        const newHelper = ThreadId.make(`${prefix}-new`);
+        assert.equal(
+          toSafeThreadAttachmentSegment(oldHelper),
+          toSafeThreadAttachmentSegment(newHelper),
+        );
+        yield* store.logger("native").write({ text: "old helper" }, oldHelper);
+        yield* store.removeThread(oldHelper);
+        yield* store.logger("native").write({ text: "new helper" }, newHelper);
+        yield* store.logger("native").write({ text: "late old helper" }, oldHelper);
+        yield* store.close();
+        assert.isFalse(yield* fs.exists(ownedLogPath(base, deleted)));
+        assert.isFalse(yield* fs.exists(`${ownedLogPath(base, deleted)}.1`));
+        assert.include(yield* fs.readFileString(ownedLogPath(base, kept)), "keep this");
+        const helperLog = yield* fs.readFileString(ownedLogPath(base, prefix));
+        assert.include(helperLog, "new helper");
+        assert.notInclude(helperLog, "old helper");
+      }),
+  );
   it.effect("summarizes circular events without exposing their contents in diagnostics", () => {
     const messages: Array<unknown> = [];
     const logCapture = Logger.make<unknown, void>(({ message }) => {

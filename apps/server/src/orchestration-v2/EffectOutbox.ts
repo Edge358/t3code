@@ -1,3 +1,4 @@
+import { purgeCompletedThreads } from "./ThreadPurge.ts";
 import {
   CheckpointId,
   CheckpointScopeId,
@@ -579,8 +580,16 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
       ),
       succeed: Effect.fn("EffectOutbox.succeed")(
         function* ({ effectId, workerId }) {
-          const now = DateTime.formatIso(yield* DateTime.now);
-          const rows = yield* sql<{ readonly effect_id: string }>`
+          const completed = yield* sql.withTransaction(
+            Effect.gen(function* () {
+              const now = DateTime.formatIso(yield* DateTime.now);
+              const owned = yield* sql<{
+                thread_id: string;
+                effect_type: string;
+                payload_json: string;
+              }>`SELECT thread_id, effect_type, payload_json
+            FROM orchestration_v2_effect_outbox WHERE effect_id = ${effectId} AND status = 'running' AND lease_owner = ${workerId}`;
+              const rows = yield* sql<{ readonly effect_id: string }>`
             UPDATE orchestration_v2_effect_outbox
             SET
               status = 'succeeded',
@@ -593,12 +602,29 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
               AND lease_owner = ${workerId}
             RETURNING effect_id
           `;
-          if (rows.length === 1) {
+              if (rows.length === 1) {
+                if (owned[0]?.effect_type === "thread.history-delete") {
+                  const request = yield* decodeRequest(owned[0].payload_json);
+                  yield* purgeCompletedThreads(
+                    sql,
+                    request.type === "thread.history-delete"
+                      ? (request.threadIds ?? [owned[0].thread_id])
+                      : [],
+                  );
+                  yield* sql`DELETE FROM orchestration_v2_effect_outbox WHERE effect_id = ${effectId}
+                AND EXISTS (SELECT 1 FROM orchestration_v2_projection_threads t WHERE t.thread_id = orchestration_v2_effect_outbox.thread_id
+                  AND json_extract(t.payload_json, '$.historyDeletion.purged') = 1)`;
+                }
+              }
+              return rows.length === 1;
+            }),
+          );
+          if (completed) {
             cancellationSignals.delete(effectId);
             yield* signalSettled([effectId]);
             yield* notifyAvailable();
           }
-          return rows.length === 1;
+          return completed;
         },
         (effect, { effectId }) =>
           effect.pipe(

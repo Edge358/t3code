@@ -1206,32 +1206,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause })),
     );
 
-  /** Side chats live inside their parent, so deleting the parent deletes them too. */
-  const liveSideChatIds = Effect.fn("Orchestrator.liveSideChatIds")(
-    function* (threadId: ThreadId) {
-      const { contextTransfers } = yield* projectionStore
-        .getThreadRecords(threadId, ["contextTransfers"])
-        .pipe(
-          Effect.catchTags({
-            ProjectionStoreThreadNotFoundError: () => Effect.succeed({ contextTransfers: [] }),
-          }),
-        );
-      const sideChatIds: Array<ThreadId> = [];
-      for (const transfer of contextTransfers) {
-        if (transfer.type !== "fork" || transfer.sourceThreadId !== threadId) continue;
-        const child = yield* projectionStore
-          .getThread(transfer.targetThreadId)
-          .pipe(
-            Effect.catchTags({ ProjectionStoreThreadNotFoundError: () => Effect.succeed(null) }),
-          );
-        if (child?.lineage.sideChat === true && child.deletedAt === null) {
-          sideChatIds.push(child.id);
-        }
-      }
-      return sideChatIds;
-    },
-    (effect, threadId) =>
-      effect.pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause }))),
+  const deletionDescendantIds = Effect.fn("Orchestrator.descendantThreadIds")(
+    (threadId: ThreadId) =>
+      projectionStore
+        .getDescendantThreadIds(threadId)
+        .pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause }))),
   );
 
   const getProjectionWithPendingEvents =
@@ -12843,7 +12822,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
 
   const dispatchOnce = Effect.fn("orchestrationV2.dispatch.once")(function* (
     command: OrchestrationV2ServerCommand,
-    sideChatIds: ReadonlyArray<ThreadId>,
+    descendantIds: ReadonlyArray<ThreadId>,
   ): Effect.fn.Return<
     {
       readonly events: ReadonlyArray<OrchestrationV2DomainEvent>;
@@ -13007,19 +12986,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             effects: [],
           };
         }
-        const activeSideChatIds = (yield* Effect.forEach(sideChatIds, (threadId) =>
+        const activeDescendantIds = (yield* Effect.forEach(descendantIds, (threadId) =>
           isDeletionInFlight(threadId).pipe(Effect.map((inFlight) => (inFlight ? [] : [threadId]))),
         )).flat();
-        const groupHasNativeHistory =
-          sideChatIds.length > 0 &&
-          (yield* Effect.forEach([...sideChatIds, command.threadId], (threadId) =>
-            projectionStore
-              .getThreadRecords(threadId, ["providerThreads"])
-              .pipe(mapDispatchError(command)),
-          )).some(
-            (record) =>
-              record.providerThreads.length > 0 || record.thread.historyDeletion !== undefined,
-          );
         const planDeletion = Effect.fn("Orchestrator.planDeletion")(function* (
           deletion: typeof command,
         ) {
@@ -13038,11 +13007,12 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                 (cause) => new OrchestratorProjectionError({ threadId: deletion.threadId, cause }),
               ),
             );
-          if (projection.thread.deletedAt !== null) return { events: [], effects: [] };
+          if (projection.thread.historyDeletion?.purged === true)
+            return { events: [], effects: [] };
           return yield* mapDispatchError(command)(
             planThreadDeletion({
               command: deletion,
-              forceHistoryDeletion: groupHasNativeHistory,
+              forceHistoryDeletion: true,
               historyDeletionRequestId: command.commandId,
               projection,
               attachmentIds: yield* projectionStore
@@ -13066,10 +13036,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             return { events: [], effects: [] };
           }
         }
-        // The dispatch wrapper holds each side chat's lock, so none can commit after this plan.
+        // The dispatch wrapper holds every descendant's command lock.
         const plans = [
           yield* planDeletion(command),
-          ...(yield* Effect.forEach(activeSideChatIds, (threadId) =>
+          ...(yield* Effect.forEach(activeDescendantIds, (threadId) =>
             planDeletion({
               ...command,
               commandId: CommandId.make(`${command.commandId}:side-chat:${threadId}`),
@@ -13090,7 +13060,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                         request: {
                           ...effect.request,
                           // Independently deleting children still gate the parent's completion.
-                          threadIds: [...sideChatIds, command.threadId],
+                          threadIds: [...descendantIds, command.threadId],
                         },
                       },
                     ]
@@ -13394,10 +13364,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     };
   });
 
-  /** `sideChatIds` are the live side chats a `thread.delete` cascades to, read under their locks. */
+  /** Descendants are collected before planning and locked from parents to children. */
   const dispatchWithReceiptEffect = Effect.fn("orchestrationV2.dispatch.withReceipt")(function* (
     command: OrchestrationV2ServerCommand,
-    sideChatIds: ReadonlyArray<ThreadId> = [],
+    descendantIds: ReadonlyArray<ThreadId> = [],
   ): Effect.fn.Return<OrchestratorV2DispatchResult, OrchestratorV2Error> {
     yield* Effect.annotateCurrentSpan({
       "orchestration_v2.command_id": command.commandId,
@@ -13491,8 +13461,14 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           : [commandThreadId(command)];
       for (const threadId of affected) {
         const thread = yield* findThread(threadId);
-        // A failed deletion leaves the thread usable; only an in-flight one blocks other commands.
-        if (thread?.historyDeletion?.status === "pending") {
+        // Partial cleanup is irreversible; new work cannot reuse a history already removed.
+        if (
+          thread?.historyDeletion?.status === "pending" ||
+          (thread?.historyDeletion?.status === "failed" &&
+            !["thread.archive", "thread.unarchive", "thread.settle", "thread.unsettle"].includes(
+              command.type,
+            ))
+        ) {
           return yield* new ThreadHistoryDeletionError({
             threadId,
             detail:
@@ -13501,7 +13477,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         }
       }
     }
-    const plan = yield* dispatchOnce(command, sideChatIds).pipe(
+    const plan = yield* dispatchOnce(command, descendantIds).pipe(
       Effect.filterOrFail(
         (planned) =>
           planned.events.length > 0 ||
@@ -13670,11 +13646,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     if (command.type === "thread.delete")
       return yield* threadDispatch.withLock(
         command.threadId,
-        liveSideChatIds(command.threadId).pipe(
-          Effect.flatMap((sideChatIds) =>
-            sideChatIds.reduce(
-              (locked, sideChatId) => threadDispatch.withLock(sideChatId, locked),
-              dispatchWithReceiptEffect(command, sideChatIds),
+        deletionDescendantIds(command.threadId).pipe(
+          Effect.flatMap((descendantIds) =>
+            descendantIds.reduce(
+              (locked, descendantId) => threadDispatch.withLock(descendantId, locked),
+              dispatchWithReceiptEffect(command, descendantIds),
             ),
           ),
         ),
@@ -13828,6 +13804,22 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
   );
 
   const recoverDelegatedTasks = Effect.gen(function* () {
+    yield* Effect.gen(function* () {
+      const candidates = yield* projectionStore.getDeletionSweepThreadIds();
+      for (const threadId of candidates) {
+        yield* dispatchWithReceipt({
+          type: "thread.delete",
+          threadId,
+          commandId: CommandId.make(`content-cleanup:${threadId}`),
+        });
+      }
+      if (candidates.length > 0)
+        yield* Effect.logInfo("Queued existing conversation cleanup", { count: candidates.length });
+    }).pipe(
+      Effect.catch((cause) =>
+        Effect.logWarning("Could not queue existing conversation cleanup", { cause }),
+      ),
+    );
     yield* projectionStore.getRecoveryThreadIds("subagent-results").pipe(
       Effect.tap((threadIds) =>
         Effect.annotateCurrentSpan("recovery.subagentResultThreads", threadIds.length),
