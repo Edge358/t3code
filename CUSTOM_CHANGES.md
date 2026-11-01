@@ -1,5 +1,48 @@
 # Custom Windows build: changes and rationale
 
+These are my personal modifications to T3 Code, shaped around privacy, reliable
+cleanup, readability, and the way I work. Some are preferences for my own setup;
+others may be useful to more users. The summary below separates those interests,
+with rationale, implementation links, and verification details in the sections
+that follow.
+
+## At a glance
+
+### Privacy and cleanup
+
+- Disable T3 reporting, diagnostic exports, cloud/relay features, and desktop
+  remote exposure.
+- Block automatic external icons, require consent for remote conversation images,
+  and disable app auto-updates and several automatic checks/downloads.
+- Apply provider optional-traffic opt-outs and default old browser captures and
+  rotated logs to 30-day cleanup.
+- Delete descendant conversations, owned T3 content, and unshared local
+  Codex/Claude histories, with retry and protection for shared resources.
+
+### Potential upstream contributions
+
+- More reliable conversation deletion and preservation of the current view while
+  an unrelated thread finishes deleting.
+- Clickable menu Close/Back controls and an add-folder action in the thread chooser.
+- Readability controls, remote-image consent, and avoiding unnecessary identity
+  reads when reporting is disabled.
+- Claude usage-display fixes and Windows profile/path compatibility improvements.
+
+These are candidates for discussion, not assumptions about upstream priorities;
+[section 7](#7-possible-independent-upstream-proposals) identifies their scope.
+
+### Personal workflow and appearance
+
+- Larger, more consistent text, adjustable context-menu sizes, smaller headings,
+  and dimmer typing hints.
+- A folder chooser for new threads and a neutral welcome page after deleting the
+  thread being viewed.
+- Optional spoken replies through an existing speech service.
+- Automatic settling and restart continuation off by default, with the
+  GitHub-star prompt suppressed.
+
+## Background and scope
+
 Upstream base: T3 Code `v0.1.6`, commit `2359643cffa6ba9ee84d6f2694b935de54a8013e`,
 tagged locally as `private-base-v0.1.6`. This document describes how the variant
 behaves now and why. The verification section states the public evidence limits;
@@ -18,7 +61,8 @@ provider histories. Personal preferences are separated below from changes that
 could be proposed independently upstream. **If you maintain upstream T3 Code and
 want to see what might be worth taking, start at
 [section 7](#7-possible-independent-upstream-proposals)**; each row names the
-problem and points to the section that describes the change and its tests.
+problem and links to its implementation or the section explaining the change.
+Code and test entry points for the latest work are included below.
 The companion [privacy review](docs/custom-build/privacy-review.md) records
 findings, implementation choices, evidence, and unresolved review areas.
 
@@ -59,6 +103,12 @@ This is not a claim that every display/DPI combination has been tested.
 
 ## 2. Projects and new conversations
 
+Here, a project is T3's record for a working folder. It does not have to be a Git
+repository or have a GitHub remote. These navigation changes apply to web and
+desktop; mobile keeps its separate navigation behavior.
+
+### Starting a thread
+
 The top New Thread button and Ctrl+N now open the project chooser consistently,
 including when there is only one project or none. A project's own New Thread
 button still starts directly in that project; Shift-clicking the top button
@@ -78,7 +128,38 @@ The existing project-organized sidebar is now enabled by default. This is the
 `boringSidebarEnabled` setting, distinct from grouping matching repositories
 across environments.
 
-Sources: [Sidebar.tsx](apps/web/src/components/Sidebar.tsx),
+### Home after deletion
+
+Home now stays on the neutral **What should we work on?** page until you choose
+to start a thread. With existing projects, **Choose a project** opens the same
+project chooser; **Start without a project** uses the existing scratch workflow.
+Deleting the thread currently being viewed returns home, even if other threads
+remain. Deleting an unrelated thread leaves the current view alone, including when
+the user navigates elsewhere while deletion is finishing. These rules also apply
+to settled threads; deletion no longer selects a replacement conversation.
+
+The home route no longer starts a draft as a side effect. After a successful
+delete, the action checks the current environment/thread before navigating home;
+no replacement-thread sorting is needed. Implementation:
+[home route](apps/web/src/routes/_chat.index.tsx),
+[welcome page](apps/web/src/components/NoProjectsHero.tsx), and
+[thread actions](apps/web/src/hooks/useThreadActions.ts).
+[Navigation regressions](apps/web/src/hooks/useThreadActions.permissions.test.ts)
+cover siblings, another environment, a missing sidebar shell, failed deletion,
+and navigation while deletion is pending.
+
+### Clickable menu dismissal
+
+Command-menu footer **Close** controls are clickable. File and content search
+footers instead offer clickable **Back**, preserving the parent search. Keyboard
+shortcuts and the existing submenu Back arrow remain available. The shared
+[footer](apps/web/src/components/CommandPaletteContent.tsx) uses the existing
+button component and an explicit action from each caller; Back restores the parent
+search rather than closing it. [Footer tests](apps/web/src/components/CommandPaletteContent.browser.test.tsx)
+and [palette tests](apps/web/src/components/CommandPalette.browser.test.tsx) exercise
+mouse dismissal, focus, and restoring the search query with the real app stylesheet.
+
+Chooser implementation: [Sidebar.tsx](apps/web/src/components/Sidebar.tsx),
 [SidebarThreadHeader.tsx](apps/web/src/components/sidebar/SidebarThreadHeader.tsx),
 [CommandPalette.tsx](apps/web/src/components/CommandPalette.tsx),
 [chatRouteCommands.ts](apps/web/src/shortcuts/chatRouteCommands.ts).
@@ -240,8 +321,20 @@ Acceptance distinguishes source regression tests, packaged startup, and checks
 against the installed profile. The deletion repair was exercised by the installed
 app against preserved deleted conversations and helper descendants; read-only
 before/after checks verified removal and preservation of the kept conversation.
-Fresh provider interaction, a new end-to-end UI deletion, speech playback, and
-other-machine installation require their own acceptance evidence.
+Fresh Claude/Codex interaction and deletion through the UI of a parent with two
+helpers and a side chat were also verified, including supported native-history
+cleanup and preservation of an unrelated conversation. That test used a non-Git
+folder; checkpoint-ref evidence comes from separate disposable-Git tests and the
+earlier installed cleanup.
+
+The owner subsequently confirmed clickable Close and return to the neutral home
+page after deleting the viewed test thread. A read-only backend check confirmed
+complete purge and no saved conversations/messages remaining. Unrelated-thread
+navigation and file/content-search Back have automated coverage; they were not
+separately reported in that manual check. That latest check had no before snapshot
+of native histories, so it adds no independent native-file deletion proof.
+Speech was tested in earlier builds; it was not replayed as part of this latest
+acceptance. Other-machine installation and broader live scenarios remain unverified.
 
 Exact build identities, per-build results, network captures, and the history of
 fixes are kept in the private build record under `docs/local`, which is ignored
@@ -285,6 +378,19 @@ to disk on databases with incremental auto-vacuum enabled; no full VACUUM is add
 after each deletion. This is not secure erase, and removing Git refs does not
 immediately erase Git objects.
 
+Implementation and regression entry points:
+[deletion planning/service](apps/server/src/orchestration-v2/HistoryDeletionService.ts)
+and its [tests](apps/server/src/orchestration-v2/HistoryDeletionService.test.ts),
+[content purge](apps/server/src/orchestration-v2/ThreadPurge.ts),
+[Codex cleanup](apps/server/src/orchestration-v2/Adapters/codexHistoryDeletion.ts)
+and its [tests](apps/server/src/orchestration-v2/Adapters/codexHistoryDeletion.test.ts),
+[Claude cleanup](apps/server/src/claudeHistoryDeletion.ts)
+and its [tests](apps/server/src/claudeHistoryDeletion.test.ts).
+The [event logger](apps/server/src/provider/EventNdjsonLogger.ts) and its
+[tests](apps/server/src/provider/EventNdjsonLogger.test.ts) cover late writes and
+full thread IDs whose shortened log filenames collide. These are distinct from
+the navigation preference in section 2.
+
 Codex deletion probes ancestor filtering and falls back to tracing parent links
 across active and archived histories. Claude deletion resolves redirected home
 paths and refuses links inside its history and session-environment folders.
@@ -296,32 +402,51 @@ every change is an upstream bug. Check the current contribution requirements
 before any submission; the pinned [CONTRIBUTING.md](CONTRIBUTING.md) describes
 limited review capacity, focused scope, and prior discussion for product changes.
 
-| Candidate                                                                                     | Concrete problem to discuss                                                                                                                                                                                                                                    | What should stay separate                                                                                                                                                                           |
-| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Larger consistent font limits                                                                 | One text control cannot reach the readable size available in another.                                                                                                                                                                                          | Personal 24/22/18 preferences and other default changes.                                                                                                                                            |
-| Configurable app context-menu text                                                            | Native action menus remain too small despite larger app text.                                                                                                                                                                                                  | Broad restyling; verify keyboard/accessibility/platform behavior independently.                                                                                                                     |
-| Shared chat/code size                                                                         | A single reply mixes unexpectedly different sizes; existing size controls are confusing.                                                                                                                                                                       | Treat as an optional product design discussion, not a universal fix.                                                                                                                                |
-| Add-folder action in new-thread chooser                                                       | Choosing a new conversation offers existing projects but no direct way to add a folder.                                                                                                                                                                        | Project grouping defaults and global shortcut behavior can be reviewed separately.                                                                                                                  |
-| Explicit remote-image loading                                                                 | Displaying a reply can contact an image host before a click.                                                                                                                                                                                                   | Fixed removal of analytics/cloud features.                                                                                                                                                          |
-| Skip identity reads when reporting is disabled                                                | Disabling reporting should also avoid unnecessary identity collection.                                                                                                                                                                                         | Hard-coded private-build policy.                                                                                                                                                                    |
-| Optional external speech queue                                                                | Users with an existing local speech service can hear completed replies.                                                                                                                                                                                        | Personal adapter patches; needs a portable integration design.                                                                                                                                      |
-| Symlink capability guards                                                                     | Unprivileged Windows tests fail during fixture setup.                                                                                                                                                                                                          | Runtime settings changes; preserve real link validation on capable hosts.                                                                                                                           |
-| Less prominent placeholder                                                                    | Hint text resembles entered text at large sizes.                                                                                                                                                                                                               | Other typography choices.                                                                                                                                                                           |
-| Claude subscription usage fallback                                                            | The CLI can return no usage under its optional-traffic restriction despite a working account. Includes clear messages for an expired saved login and for macOS Keychain storage.                                                                               | Private telemetry policy; assess supported auth modes and provider schema before proposing upstream.                                                                                                |
-| Synchronized native history deletion ([section 6](#synchronized-local-conversation-deletion)) | Deleting a thread in T3 leaves its Codex and Claude histories on disk, where the provider CLIs still list them. The server-side design (durable progress, retry of unfinished targets, protection of histories shared with kept threads) is provider-agnostic. | The always-confirm choice and the hidden delete-confirmation setting are local preferences. Codex's `ancestorThreadId` filter is undeclared in the vendored schema and needs a schema update first. |
-| Claude home behind a Windows junction                                                         | Code that refuses symlinked history folders also refused a Claude home reached through a junction or redirected profile. Resolving the real path first keeps the guard without the false refusal.                                                              | Nothing; small and self-contained, with a test.                                                                                                                                                     |
-| Desktop profile location override                                                             | There is no supported way to run a second desktop copy with its own Electron profile without moving `%APPDATA%` for every child process. A `T3CODE_DESKTOP_APP_DATA` override relocates only the profile.                                                      | The launcher scripts and `.local` layout are local.                                                                                                                                                 |
-| `check:changed` on Windows                                                                    | `vp run check:changed` spawns a global `vp` that a `pnpm`-only install does not have, so the script fails before any check runs.                                                                                                                               | Local workaround of running the pieces by hand.                                                                                                                                                     |
+| Candidate / entry point                                                                                                      | Problem and implemented behavior                                                                                                                             | Keep separate                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| [Consistent font limits](#1-readability-and-appearance)                                                                      | Text controls expose inconsistent readable sizes; the four controls now allow up to 24px.                                                                    | Personal 24/22/18 preferences and other defaults.                                                                                       |
+| [Configurable context-menu text](#1-readability-and-appearance)                                                              | Native action menus stay small despite larger app text; app-rendered menus use a saved size.                                                                 | Native-menu tradeoffs and cross-platform accessibility need their own review.                                                           |
+| [Shared chat/code size](#1-readability-and-appearance)                                                                       | Replies mix unexpected sizes; one shared size controls ordinary replies and code when Separate fonts is off.                                                 | Optional product design, not a universal defect.                                                                                        |
+| [Add-folder action in New Thread](#starting-a-thread)                                                                        | The chooser now offers Add project / choose folder alongside existing projects and No project.                                                               | Project-grouping defaults and global shortcut behavior.                                                                                 |
+| [Neutral home after deletion](#home-after-deletion)                                                                          | Deleting the viewed thread returns home without starting a draft or choosing another conversation.                                                           | Intentional workflow preference; unrelated-thread preservation can be reviewed independently.                                           |
+| [Preserve navigation during deletion](#home-after-deletion)                                                                  | Recheck the current route after deletion so a pending action does not pull the user away from a newer selection.                                             | The choice of home versus another destination.                                                                                          |
+| [Clickable Close and Back](#clickable-menu-dismissal)                                                                        | Footer shortcut hints now also work with a mouse; search Back preserves the parent query.                                                                    | Broader command-menu redesign and unrelated navigation changes.                                                                         |
+| [Explicit remote-image loading](docs/custom-build/privacy-review.md#findings-and-changes)                                    | Rendering a reply can contact an image host; consent gates loading.                                                                                          | Fixed removal of analytics/cloud features.                                                                                              |
+| [Skip identity reads when reporting is disabled](docs/custom-build/privacy-review.md#findings-and-changes)                   | Turning off reporting should also avoid unnecessary identity collection.                                                                                     | Hard-coded private-build policy.                                                                                                        |
+| [Optional speech queue](#4-optional-read-aloud-integration)                                                                  | Completed replies can be sent to an existing speech service.                                                                                                 | Personal adapters are not bundled; portability needs review.                                                                            |
+| [Windows symlink test guards](#6-verification-approach)                                                                      | Hosts without symlink privileges fail during fixture setup; use the existing capability probe.                                                               | Retain real link validation on capable hosts.                                                                                           |
+| [Less prominent placeholder](#1-readability-and-appearance)                                                                  | Hint text can resemble entered text at large sizes; lower its opacity.                                                                                       | Other typography choices.                                                                                                               |
+| [Claude subscription usage fallback](docs/custom-build/privacy-review.md#later-claude-limits-diagnosis-private13-2026-10-31) | The CLI can omit usage under its optional-traffic restriction; a bounded first-party fallback restores limits and explains expired login/Keychain limits.    | Private telemetry policy; supported auth modes and provider schema need review.                                                         |
+| [Complete local conversation deletion](#synchronized-local-conversation-deletion)                                            | Include descendants, owned server content/logs/checkpoints and unshared Codex/Claude histories, with durable progress, retry and shared-resource protection. | Always-confirm is a preference. Codex's undeclared ancestor filter needs schema work. Unsupported/cloud histories remain outside scope. |
+| [Claude home behind a junction](apps/server/src/claudeHistoryDeletion.ts)                                                    | Resolve the real home first so redirected Windows profiles work while links inside history folders remain guarded.                                           | Small focused fix, with tests beside the source.                                                                                        |
+| [Desktop profile override](#launch-folders-and-cleanup)                                                                      | `T3CODE_DESKTOP_APP_DATA` isolates the Electron profile without redirecting every child's APPDATA.                                                           | Local launcher scripts and directory layout.                                                                                            |
+| [Windows check:changed compatibility](#6-verification-approach)                                                              | The script invokes a global vp absent from this pnpm-only setup.                                                                                             | This is a recorded tooling issue with a manual workaround, not an implemented portability fix.                                          |
 
 Automatic-settle defaults, cleanup retention, suppressed promotion, and fixed
 privacy restrictions are local preferences. They need not accompany a useful
 readability or reliability proposal. A PR is a request to merge a selected change;
 a fork is a separately maintained copy. Neither is required to keep this record.
 
+For a source review, compare this checkout against the preserved base:
+
+```powershell
+git log --oneline private-base-v0.1.6..HEAD
+git diff private-base-v0.1.6 -- apps/web/src/hooks/useThreadActions.ts
+git status --short
+```
+
+Replace the example path with the implementation/test paths above. The diff includes
+uncommitted changes; a published branch contains only commits. Existing local
+commits group several behaviors, so an upstream proposal should extract a focused
+change and its tests instead of assuming the entire branch belongs in one PR.
+The README and this document are the introduction for a potential fork; no separate
+letter to the maintainers is required to understand the changes.
+
 ## 8. Deferred work and publication boundary
 
 Archive/restore, thread-age labels, idle-session policy, and cross-thread
-communication were not redesigned. Local deletion must not be presented as cloud
+communication were not redesigned. Grouping settled threads by their original
+project is also deferred; the new deletion navigation does not change that grouping. Local deletion must not be presented as cloud
 deletion. No personal projects directory is hard-coded.
 
 Before any eventual public release, choose its identity and version, preserve
@@ -364,6 +489,8 @@ and saved profile do not belong there.
 
 The profile, records, and generated builds are ignored by Git. Committing source
 does not back them up. Your actual project folders remain wherever you chose them.
+Before launching retained development data, isolate provider homes and referenced
+project repositories as described below; a separate T3 profile alone is insufficient.
 The launcher preserves disabled telemetry and updates, enables no debug port,
 and records its process information in `.local/records/launch.json`. It relocates
 only the Electron profile, through the `T3CODE_DESKTOP_APP_DATA` override added in
@@ -455,6 +582,18 @@ unset. Their build environment explicitly set `T3CODE_DESKTOP_SIGNED=false`,
 `T3CODE_DISABLE_AUTO_UPDATE=true`. Packaging uses the Rust toolchain on PATH.
 These do not replace the fixed source privacy policy. An unpacked executable
 requires its companion files; copying only that EXE is not an installation.
+
+On Windows PowerShell, native tools can write ordinary progress to stderr. When
+capturing build logs, do not treat every stderr line as a terminating failure;
+record the process exit code immediately and inspect it alongside the logs.
+The verified workflow uses `$ErrorActionPreference = 'Continue'` for the native
+build invocation and checks `$LASTEXITCODE` afterward.
+
+When updating the upstream base, review conflicts in the private policy and cloud/
+telemetry gates, provider environment/usage helpers, settings defaults, deletion
+planner/purge/logger, web navigation and typography, and desktop packaging.
+Rerun the affected focused checks and verify the actual installed artifact; the
+older privacy capture is not evidence for new upstream dependencies or behavior.
 
 For each future change, update the applicable behavior/default entry here and
 the privacy ledger when data flows change. Record the build version, actual

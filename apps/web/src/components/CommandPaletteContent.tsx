@@ -1,7 +1,13 @@
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import { type ComponentProps, type ReactNode } from "react";
 
-import { Command, CommandFooter, CommandInput, CommandPanel } from "./ui/command";
+import {
+  Command,
+  CommandFooter,
+  CommandFooterAction,
+  CommandInput,
+  CommandPanel,
+} from "./ui/command";
 import { Kbd, KbdGroup } from "./ui/kbd";
 
 /**
@@ -23,7 +29,8 @@ function claimFocusInOpenDialog(input: HTMLInputElement | null) {
 
 type CommandPaletteContentProps = Omit<ComponentProps<typeof Command>, "children"> & {
   readonly children: ReactNode;
-  readonly escapeLabel?: ReactNode;
+  readonly escapeLabel?: string;
+  readonly onEscape: () => void;
   readonly footerActionLabel?: ReactNode;
   readonly footerTrailing?: ReactNode;
   readonly inputAccessory?: ReactNode;
@@ -36,6 +43,7 @@ type CommandPaletteContentProps = Omit<ComponentProps<typeof Command>, "children
 export function CommandPaletteContent({
   children,
   escapeLabel = "Close",
+  onEscape,
   footerActionLabel,
   footerTrailing,
   inputAccessory,
@@ -86,10 +94,12 @@ export function CommandPaletteContent({
                 <span>Back</span>
               </KbdGroup>
             ) : null}
-            <KbdGroup>
-              <Kbd>Esc</Kbd>
-              <span>{escapeLabel}</span>
-            </KbdGroup>
+            <CommandFooterAction type="button" aria-label={escapeLabel} onClick={onEscape}>
+              <KbdGroup>
+                <Kbd>Esc</Kbd>
+                <span>{escapeLabel}</span>
+              </KbdGroup>
+            </CommandFooterAction>
           </div>
           {footerTrailing}
         </CommandFooter>

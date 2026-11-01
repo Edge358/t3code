@@ -1,7 +1,6 @@
 import {
   parseScopedThreadKey,
   scopeProjectRef,
-  scopeThreadRef,
   scopedThreadKey,
 } from "@t3tools/client-runtime/environment";
 import { settlePromise, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
@@ -22,7 +21,7 @@ import * as Schema from "effect/Schema";
 import { AsyncResult } from "effect/reactivity";
 import { useRouter } from "@tanstack/react-router";
 
-import { getFallbackThreadIdAfterDelete, pinOrderKeyBetween } from "../components/Sidebar.logic";
+import { pinOrderKeyBetween } from "../components/Sidebar.logic";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { environmentSession, readEnvironmentScope } from "../state/session";
 import { appAtomRegistry } from "../rpc/atomRegistry";
@@ -327,7 +326,6 @@ export function useThreadActions() {
   const refreshVcsStatus = useAtomCommand(vcsEnvironment.refreshStatus, {
     reportFailure: false,
   });
-  const sidebarThreadSortOrder = useClientSettings((settings) => settings.sidebarThreadSortOrder);
   const confirmThreadUnpin = useClientSettings((settings) => settings.confirmThreadUnpin);
   const clearComposerDraftForThread = useComposerDraftStore((store) => store.clearDraftThread);
   const clearProjectDraftThreadById = useComposerDraftStore(
@@ -351,6 +349,17 @@ export function useThreadActions() {
   const getCurrentRouteThreadRef = () => {
     const currentRouteParams = router.state.matches[router.state.matches.length - 1]?.params ?? {};
     return resolveThreadRouteRef(currentRouteParams);
+  };
+
+  const returnHomeAfterDeletion = async (deletedThread: ScopedThreadRef) => {
+    // Read after deletion completes so a later navigation by the user wins.
+    const current = getCurrentRouteThreadRef();
+    if (
+      current?.threadId === deletedThread.threadId &&
+      current.environmentId === deletedThread.environmentId
+    ) {
+      await navigateAfterThreadDeletion(() => router.navigate({ to: "/", replace: true }));
+    }
   };
 
   const unarchiveThread = async (target: ScopedThreadRef, opts: { navigate?: boolean } = {}) => {
@@ -446,6 +455,7 @@ export function useThreadActions() {
         expireThreadUndos(target, [...LIST_PLACEMENT_UNDO_KINDS, "archive"]);
         refreshArchivedThreadsForEnvironment(target.environmentId);
         clearThreadPreviewState(target);
+        await returnHomeAfterDeletion(target);
       }
       return result;
     }
@@ -542,17 +552,6 @@ export function useThreadActions() {
       });
     }
 
-    const deletedThreadIds = deletedIds ?? new Set<ThreadId>();
-    const currentRouteThreadRef = getCurrentRouteThreadRef();
-    const shouldNavigateToFallback =
-      currentRouteThreadRef?.threadId === threadRef.threadId &&
-      currentRouteThreadRef.environmentId === threadRef.environmentId;
-    const fallbackThreadId = getFallbackThreadIdAfterDelete({
-      threads,
-      deletedThreadId: threadRef.threadId,
-      deletedThreadIds,
-      sortOrder: sidebarThreadSortOrder,
-    });
     const deleteResult = await deleteThreadMutation({
       environmentId: threadRef.environmentId,
       input: { threadId: threadRef.threadId },
@@ -571,22 +570,7 @@ export function useThreadActions() {
     clearTerminalUiState(threadRef);
     clearThreadPreviewState(threadRef);
 
-    if (shouldNavigateToFallback) {
-      const fallbackThread = fallbackThreadId
-        ? readThreadShell(scopeThreadRef(threadRef.environmentId, fallbackThreadId))
-        : null;
-      await navigateAfterThreadDeletion(() =>
-        fallbackThread
-          ? router.navigate({
-              to: "/$environmentId/$threadId",
-              params: buildThreadRouteParams(
-                scopeThreadRef(fallbackThread.environmentId, fallbackThread.id),
-              ),
-              replace: true,
-            })
-          : router.navigate({ to: "/", replace: true }),
-      );
-    }
+    await returnHomeAfterDeletion(threadRef);
 
     if (!shouldDeleteWorktree || !orphanedWorktreePath || !threadProject) {
       return deleteResult;

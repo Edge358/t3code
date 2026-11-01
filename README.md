@@ -18,6 +18,11 @@ For everyday use, open the installed T3 Code shortcut. The repository's
 under the Git-ignored `.local` folder. Installing the app does not import that
 profile. See [installation and data locations](CUSTOM_CHANGES.md#installing-on-this-or-another-windows-machine).
 
+For maintainers considering individual changes, the
+[contribution candidates](CUSTOM_CHANGES.md#7-possible-independent-upstream-proposals)
+link each problem to its rationale, implementation or verification. Personal
+workflow preferences are distinguished from reliability fixes.
+
 Use this README as the project map. The linked documents contain the details;
 update those documents rather than copying their contents here.
 

@@ -1,3 +1,4 @@
+import "../index.css";
 import { useState } from "react";
 import { describe, expect, it } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
@@ -16,6 +17,7 @@ function SubmenuPalette() {
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandDialogPopup aria-label="Command palette">
           <CommandPaletteContent
+            onEscape={() => setOpen(false)}
             items={["Project A"]}
             inputProps={{
               placeholder: "Search projects",
@@ -27,7 +29,11 @@ function SubmenuPalette() {
             }}
           >
             <CommandList>
-              {(item: string) => <CommandItem value={item}>{item}</CommandItem>}
+              {(item: string) => (
+                <CommandItem key={item} value={item}>
+                  {item}
+                </CommandItem>
+              )}
             </CommandList>
           </CommandPaletteContent>
         </CommandDialogPopup>
@@ -37,11 +43,13 @@ function SubmenuPalette() {
 }
 
 describe("CommandPaletteContent", () => {
-  it("focuses the search input, not the Back button, when it opens into a submenu", async () => {
+  it("focuses the submenu search input and closes from the footer", async () => {
     await using _screen = await render(<SubmenuPalette />);
 
     await userEvent.click(page.getByRole("button", { name: "Open" }));
 
     await expect.element(page.getByPlaceholder("Search projects")).toHaveFocus();
+    await userEvent.click(page.getByRole("button", { name: "Close", exact: true }));
+    await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
   });
 });

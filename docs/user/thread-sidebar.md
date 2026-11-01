@@ -5,6 +5,12 @@ need a separate branch and working directory.
 
 ## Start a thread
 
+On web and desktop, the home page stays neutral until you choose to start a
+thread. Use **Choose a project** to open the project chooser, or **Start without
+a project**. With no projects, the first button is **Add project**.
+Command-menu footer **Close** buttons can be clicked; file and content search
+use **Back** to return to the parent search.
+
 On web and desktop, the top **New thread** button opens the project chooser,
 with **Add project / choose folder…** first, existing projects underneath,
 and **No project** last. To add an existing folder, choose **Add project / choose
@@ -298,6 +304,11 @@ attachments, terminal history, owned checkpoints, and unshared local Codex/Claud
 histories, including histories from earlier provider selections. Histories from
 other providers remain.
 Confirmation is required even if it was previously disabled.
+
+On web and desktop, deleting the thread you are viewing returns to the neutral
+welcome page, whether or not other threads remain in its project. Deleting another
+thread leaves your current view alone. Settled threads follow the same rule.
+Deletion does not start a new thread automatically.
 
 The thread stays visible while deletion finishes. If part of the deletion fails,
 its message explains that deletion is incomplete; choose **Delete** again to retry.

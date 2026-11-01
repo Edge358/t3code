@@ -262,8 +262,13 @@ authorized disposable histories; retained histories were checked independently.
   combinations, other-machine installation, laptop behavior and remote/WSL speech
   remain unverified. The rebuilt desktop installer and startup were checked, and
   the owner accepted its appearance/setup. The installed deletion sweep was checked
-  against preserved old histories and a kept conversation. Fresh provider interaction,
-  a new end-to-end UI deletion, and speech playback remain separate acceptance checks.
+  against preserved old histories and a kept conversation. Later fresh Claude/Codex
+  interaction and UI deletion of a parent, two helpers and a side chat passed;
+  before/after checks verified owned content/native-history cleanup and preservation
+  of the unrelated conversation. The latest navigation-only follow-up also passed
+  the owner's Close/delete-to-home checks and a read-only backend content audit.
+  Speech playback was not repeated in these later checks, and none adds a new
+  comprehensive network capture.
 - Local conversation deletion now includes descendants, server database content,
   message search entries, provider logs, owned checkpoints, and existing attachment,
   terminal, and scheduled-task cleanup. Sanitized replay/deletion records remain;

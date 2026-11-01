@@ -85,6 +85,7 @@ export function ProjectFaviconPickerDialog(props: {
             aria-label="Choose project icon"
             autoHighlight="always"
             escapeLabel="Close"
+            onEscape={() => props.onOpenChange(false)}
             footerActionLabel="Select icon"
             footerTrailing={
               pickExternal ? (

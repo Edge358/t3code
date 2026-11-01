@@ -1,10 +1,11 @@
+import "../index.css";
 import { describe, expect, it } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import { createRef } from "react";
 
 import { render } from "../../test/render";
 import { openCommandPalette } from "../commandPaletteBus";
-import { useCommandPaletteStore } from "../commandPaletteStore";
+import { dispatchCommandPalette, useCommandPaletteStore } from "../commandPaletteStore";
 import { CommandPalette } from "./CommandPalette";
 import { SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
 import { SidebarProvider } from "./ui/sidebar";
@@ -14,6 +15,25 @@ function setup() {
 }
 
 describe("CommandPalette open intents", () => {
+  it.each(["files", "content"] as const)(
+    "returns from %s search with the Back footer",
+    async (mode) => {
+      setup();
+      await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+      dispatchCommandPalette({
+        _tag: "OpenChildSearch",
+        mode,
+        context: { query: "acme", linkedThreadSearch: null },
+      });
+      await page.getByRole("button", { name: "Back", exact: true }).click();
+      await expect
+        .element(page.getByPlaceholder("Search commands, projects, and threads..."))
+        .toHaveValue("acme");
+      await page.getByRole("button", { name: "Close", exact: true }).click();
+      await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+
   it("allows choosing a folder from New thread when there are no projects", async () => {
     setup();
     await using screen = await render(
@@ -51,6 +71,8 @@ describe("CommandPalette open intents", () => {
     openCommandPalette({ open: "new-thread-in" });
 
     await expect.element(page.getByPlaceholder("Search...")).toHaveFocus();
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("opens a search intent with its query in the focused input", async () => {
@@ -62,5 +84,7 @@ describe("CommandPalette open intents", () => {
     const input = page.getByPlaceholder("Search commands, projects, and threads...");
     await expect.element(input).toHaveFocus();
     await expect.element(input).toHaveValue("acme");
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
   });
 });

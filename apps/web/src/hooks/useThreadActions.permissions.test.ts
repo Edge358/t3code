@@ -37,6 +37,8 @@ const state = vi.hoisted(() => ({
   sessionLookupFails: false,
   localApiAvailable: true,
   confirmThreadDelete: true,
+  currentThread: null as ScopedThreadRef | null,
+  navigate: vi.fn<(...args: unknown[]) => Promise<void>>(),
 }));
 
 vi.mock("react", () => ({
@@ -45,7 +47,7 @@ vi.mock("react", () => ({
   useRef: (current: unknown) => ({ current }),
 }));
 vi.mock("@tanstack/react-router", () => ({
-  useRouter: () => ({ state: { location: { href: "/" }, matches: [] }, navigate: async () => {} }),
+  useRouter: () => ({ state: { location: { href: "/" }, matches: [] }, navigate: state.navigate }),
 }));
 vi.mock("../state/session", () => ({
   environmentSession: { sessionStateAtom: "session" },
@@ -109,10 +111,6 @@ vi.mock("../state/entities", () => ({
       .map((thread) => ({ environmentId, threadId: thread.id })),
   readProject: () => ({ workspaceRoot: "/project" }),
 }));
-vi.mock("../components/Sidebar.logic", () => ({
-  getFallbackThreadIdAfterDelete: () => null,
-  pinOrderKeyBetween: () => "a",
-}));
 vi.mock("../composerDraftStore", () => ({
   useComposerDraftStore: (select: (store: unknown) => unknown) =>
     select({
@@ -143,7 +141,7 @@ vi.mock("../localApi", () => ({
     state.localApiAvailable ? { dialogs: { confirm: state.confirm } } : undefined,
 }));
 vi.mock("../threadRoutes", () => ({
-  resolveThreadRouteRef: () => null,
+  resolveThreadRouteRef: () => state.currentThread,
   buildThreadRouteParams: (ref: ScopedThreadRef) => ref,
 }));
 vi.mock("../components/ui/toast", () => ({
@@ -231,6 +229,63 @@ beforeEach(() => {
   state.sessionLookupFails = false;
   state.localApiAvailable = true;
   state.confirmThreadDelete = true;
+  state.currentThread = null;
+  state.navigate.mockReset().mockResolvedValue(undefined);
+});
+
+describe("navigation after thread deletion", () => {
+  it("returns home when the deleted open thread is absent from the sidebar shell", async () => {
+    state.scopes.get(secondary)!.add(AuthOrchestrationOperateScope);
+    state.currentThread = target;
+    state.threads = [];
+    await useThreadActions().deleteThread(target);
+    expect(state.navigate).toHaveBeenCalledExactlyOnceWith({ to: "/", replace: true });
+  });
+
+  it.each([false, true])(
+    "returns home when deleting the open thread (has siblings: %s)",
+    async (hasSiblings) => {
+      state.scopes.get(secondary)!.add(AuthOrchestrationOperateScope);
+      state.currentThread = target;
+      if (hasSiblings) {
+        state.threads.push({ ...state.threads[0]!, id: ThreadId.make("sibling") });
+      }
+      expect((await useThreadActions().deleteThread(target))._tag).toBe("Success");
+      expect(state.navigate).toHaveBeenCalledExactlyOnceWith({ to: "/", replace: true });
+    },
+  );
+
+  it.each([primary, secondary])(
+    "keeps another open thread in environment %s",
+    async (environmentId) => {
+      state.scopes.get(secondary)!.add(AuthOrchestrationOperateScope);
+      state.currentThread = {
+        environmentId,
+        threadId: environmentId === primary ? target.threadId : ThreadId.make("other"),
+      };
+      await useThreadActions().deleteThread(target);
+      expect(state.navigate).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves navigation made while deletion is pending", async () => {
+    state.scopes.get(secondary)!.add(AuthOrchestrationOperateScope);
+    state.currentThread = target;
+    state.afterRequest = (action) => {
+      if (action === "delete")
+        state.currentThread = { ...target, threadId: ThreadId.make("other") };
+    };
+    await useThreadActions().deleteThread(target);
+    expect(state.navigate).not.toHaveBeenCalled();
+  });
+
+  it("stays in the open thread when deletion fails", async () => {
+    state.scopes.get(secondary)!.add(AuthOrchestrationOperateScope);
+    state.currentThread = target;
+    state.afterRequest = () => state.scopes.get(secondary)!.clear();
+    expect((await useThreadActions().deleteThread(target))._tag).toBe("Failure");
+    expect(state.navigate).not.toHaveBeenCalled();
+  });
 });
 
 describe("thread action permissions", () => {

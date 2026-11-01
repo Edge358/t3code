@@ -158,7 +158,10 @@ from another computer or a separate development copy.
 
 Choose **Add project** to work with an existing folder. If a chooser appears,
 choose **Local folder** and browse to the folder you want T3 to work with.
-Choose **Start without a project** if you want to begin without selecting one.
+If you already have projects, **Choose a project** opens the list and also offers
+adding a folder. A project here is a working folder; it does not need a GitHub
+repository. Choose **Start without a project** to begin without selecting one.
+The neutral welcome page also appears after you delete the thread you are viewing.
 
 Select Codex or Claude in the conversation's provider/model picker. Type a simple
 first message, such as **"Hello. Tell me what you can help me do."**, and send it.

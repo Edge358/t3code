@@ -1,3 +1,4 @@
+import { dispatchCommandPalette } from "../../commandPaletteStore";
 import { useAtomValue } from "@effect/atom-react";
 import { useState, type ReactNode } from "react";
 
@@ -55,6 +56,7 @@ function EmptyProjectFilePicker() {
     <CommandPaletteContent
       aria-label="File picker"
       escapeLabel="Back"
+      onEscape={() => dispatchCommandPalette({ _tag: "BackToCommand" })}
       footerActionLabel="Open file"
       inputProps={{ disabled: true, placeholder: "Search files…" }}
       mode="none"
@@ -113,6 +115,7 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
       aria-label="File picker"
       autoHighlight="always"
       escapeLabel="Back"
+      onEscape={() => dispatchCommandPalette({ _tag: "BackToCommand" })}
       footerActionLabel="Open file"
       inputProps={{ placeholder: "Search files…" }}
       mode="none"

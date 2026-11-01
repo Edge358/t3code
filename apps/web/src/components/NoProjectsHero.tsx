@@ -5,6 +5,7 @@ import { openCommandPalette } from "../commandPaletteBus";
 import { isElectron } from "../env";
 import { useScratchProject } from "../hooks/useScratchProject";
 import { usePrimaryEnvironmentId } from "../state/environments";
+import { useProjects } from "../state/entities";
 import { Button } from "./ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "./ui/empty";
 import { SidebarInset } from "./ui/sidebar";
@@ -13,6 +14,8 @@ import { WorkspacePageHeader } from "./WorkspacePageHeader";
 export function NoProjectsHero() {
   const contentArea = workspaceAreaProps("home", 1, "Home");
   const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const projects = useProjects();
+  const hasProjects = projects.some((project) => project.archivedAt == null);
   const { scratchEnvironmentId, startScratchThread } = useScratchProject();
   const scratchTargetEnvironmentId = scratchEnvironmentId(primaryEnvironmentId);
 
@@ -30,14 +33,23 @@ export function NoProjectsHero() {
             <EmptyHeader className="max-w-none">
               <EmptyTitle>What should we work on?</EmptyTitle>
               <EmptyDescription>
-                {scratchTargetEnvironmentId === null
-                  ? "Add a project to start your first thread."
-                  : "Add a project, or start without one."}
+                {hasProjects
+                  ? scratchTargetEnvironmentId === null
+                    ? "Choose a project to start a thread."
+                    : "Choose a project, or start without one."
+                  : scratchTargetEnvironmentId === null
+                    ? "Add a project to start your first thread."
+                    : "Add a project, or start without one."}
               </EmptyDescription>
               <div className="mt-6 flex justify-center gap-2">
-                <Button size="sm" onClick={() => openCommandPalette({ open: "add-project" })}>
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    openCommandPalette({ open: hasProjects ? "new-thread-in" : "add-project" })
+                  }
+                >
                   <PlusIcon className="size-4" />
-                  Add project
+                  {hasProjects ? "Choose a project" : "Add project"}
                 </Button>
                 {scratchTargetEnvironmentId === null ? null : (
                   <Button

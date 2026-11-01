@@ -3,7 +3,10 @@
 > **Current reading guidance:** findings and work orders below preserve the dated
 > review and its fix passes, not a list of currently open defects. The overnight
 > fixes landed in `838090cc`; the next source checkpoint is `f58d11f8`.
-> Subsequent deletion work includes all descendants and server-content cleanup.
+> Subsequent deletion work in `8681960f` includes all descendants and server-content
+> cleanup. The later neutral-home and clickable-menu changes are described in
+> [the current navigation summary](../../CUSTOM_CHANGES.md#2-projects-and-new-conversations).
+> This dated review is not a review of those later changes.
 > A failed partial deletion now intentionally blocks new work until retry succeeds;
 > the historical suggestion to clear its marker and resume is superseded because
 > some history may already be removed. Archive remains available after failure.
