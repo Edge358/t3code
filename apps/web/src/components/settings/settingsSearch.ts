@@ -672,12 +672,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["ask before thread second click inline action"],
   },
   {
-    id: "delete-confirmation",
-    title: "Delete confirmation",
-    to: "/settings/general",
-    searchTerms: ["ask before thread chat history"],
-  },
-  {
     id: "quit-confirmation",
     title: "Quit shortcut",
     to: "/settings/general",

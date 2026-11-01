@@ -50,7 +50,6 @@ export default function SideChatPane(props: {
   const canOperate = useEnvironmentScope(parentRef.environmentId, AuthOrchestrationOperateScope);
   const mergeBack = useAtomCommand(threadEnvironment.mergeBack, { reportFailure: false });
   const deleteThread = useAtomCommand(threadEnvironment.delete, { reportFailure: false });
-  const confirmThreadDelete = true;
   const [bringingBack, setBringingBack] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const mergeRun = projection ? resolveLatestMergeBackRun(projection) : null;
@@ -89,20 +88,18 @@ export default function SideChatPane(props: {
 
   const deleteSideChat = async () => {
     if (!canOperate || shell === null || deleting) return;
-    if (confirmThreadDelete) {
-      const api = readLocalApi();
-      if (!api) return;
-      const confirmed = await settlePromise(() =>
-        api.dialogs.confirm(
-          [
-            `Delete side chat "${shell.title}"?`,
-            "This deletes its T3 conversation and linked local Codex and Claude histories. Other provider histories, project files, and cloud conversations are kept.",
-          ].join("\n"),
-          { variant: "destructive" },
-        ),
-      );
-      if (confirmed._tag === "Failure" || !confirmed.value) return;
-    }
+    const api = readLocalApi();
+    if (!api) return;
+    const confirmed = await settlePromise(() =>
+      api.dialogs.confirm(
+        [
+          `Delete side chat "${shell.title}"?`,
+          "This deletes its T3 conversation and linked local Codex and Claude histories. Other provider histories, project files, and cloud conversations are kept.",
+        ].join("\n"),
+        { variant: "destructive" },
+      ),
+    );
+    if (confirmed._tag === "Failure" || !confirmed.value) return;
     setDeleting(true);
     const result = await deleteThread({
       environmentId: parentRef.environmentId,

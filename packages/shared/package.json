@@ -7,6 +7,10 @@
       "types": "./src/privateBuildPolicy.ts",
       "import": "./src/privateBuildPolicy.ts"
     },
+    "./speechServiceAddress": {
+      "types": "./src/speechServiceAddress.ts",
+      "import": "./src/speechServiceAddress.ts"
+    },
     "./changedFileKind": {
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"

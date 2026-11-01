@@ -35,7 +35,11 @@ const compactEnv = (env: Readonly<Record<string, string | undefined>>): Record<s
   );
 
 export const DesktopConfig = Config.all({
-  appDataDirectory: trimmedString("APPDATA"),
+  // A launcher can relocate the Electron profile without redirecting APPDATA for every child process.
+  appDataDirectory: Config.all({
+    override: trimmedString("T3CODE_DESKTOP_APP_DATA"),
+    appData: trimmedString("APPDATA"),
+  }).pipe(Config.map(({ override, appData }) => Option.orElse(override, () => appData))),
   xdgConfigHome: trimmedString("XDG_CONFIG_HOME"),
   xdgDataHome: trimmedString("XDG_DATA_HOME"),
   t3Home: trimmedString("T3CODE_HOME"),

@@ -1,4 +1,5 @@
 import { ClientSettingsSchema } from "@t3tools/contracts";
+import { validateSpeechServiceAddress } from "@t3tools/shared/speechServiceAddress";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -23,9 +24,16 @@ export const setClientSettings = DesktopIpc.makeIpcMethod({
   payload: ClientSettingsSchema,
   result: Schema.Void,
   handler: Effect.fn("desktop.ipc.clientSettings.set")(function* (settings) {
+    // The renderer validates before saving; this backstop keeps a bad address out of the file
+    // without rejecting the write, since the renderer applies every patch optimistically.
+    const address = settings.speechServiceAddress.trim();
+    const accepted =
+      address.length === 0 || typeof validateSpeechServiceAddress(address) !== "string"
+        ? settings
+        : { ...settings, speechServiceAddress: "", readRepliesAloud: false };
     const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
     const snapShot = yield* DesktopSnapShot.DesktopSnapShot;
-    yield* clientSettings.set(settings);
-    yield* snapShot.configure(settings);
+    yield* clientSettings.set(accepted);
+    yield* snapShot.configure(accepted);
   }),
 });

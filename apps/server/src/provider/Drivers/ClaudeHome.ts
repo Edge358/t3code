@@ -11,15 +11,14 @@ import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 /** Apply after provider overrides; never mutate the parent process environment. */
 export function withClaudePrivacyEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   if (privateBuildPolicy.reporting) return environment;
+  // Claude-specific keys only: the agent's own tool processes inherit this environment.
   return {
     ...environment,
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
     DISABLE_TELEMETRY: "1",
     DISABLE_ERROR_REPORTING: "1",
     DISABLE_AUTOUPDATER: "1",
-    DO_NOT_TRACK: "1",
     CLAUDE_CODE_ENABLE_TELEMETRY: "0",
-    OTEL_SDK_DISABLED: "true",
   };
 }
 

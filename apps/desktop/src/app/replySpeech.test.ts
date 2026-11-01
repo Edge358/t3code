@@ -16,14 +16,17 @@ describe("speaker queue delivery", () => {
     });
     expect(options?.signal).toBeInstanceOf(AbortSignal);
   });
-  it.each(["", "file:///tmp/voice", "http://user:secret@localhost/say"])(
-    "rejects invalid address %s without contacting anything",
-    async (address) => {
-      const fetcher = vi.fn<typeof fetch>();
-      await expect(postReplySpeech(address, payload, fetcher)).rejects.toThrow();
-      expect(fetcher).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    "",
+    "file:///tmp/voice",
+    "http://user:secret@localhost/say",
+    "http://8.8.8.8/say",
+    "http://[2001:db8::1]/say",
+  ])("rejects invalid address %s without contacting anything", async (address) => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(postReplySpeech(address, payload, fetcher)).rejects.toThrow();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it("reports a queue refusal and does not retry", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -33,6 +36,18 @@ describe("speaker queue delivery", () => {
     );
     expect(fetcher).toHaveBeenCalledOnce();
   });
+  it.each(["declared", "chunked"])(
+    "rejects an oversized %s acknowledgement without reading it as a queue confirmation",
+    async (framing) => {
+      const oversized = `{"queued":true,"padding":"${"x".repeat(5_000)}"}`;
+      const headers: Record<string, string> = { "content-type": "application/json" };
+      if (framing === "declared") headers["content-length"] = String(oversized.length);
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(oversized, { headers }));
+      await expect(postReplySpeech("http://127.0.0.1:8011/say", payload, fetcher)).rejects.toThrow(
+        "unexpected response",
+      );
+    },
+  );
   it("does not retry an uncertain network result", async () => {
     const fetcher = vi.fn<typeof fetch>().mockRejectedValue(new Error("connection lost"));
     await expect(postReplySpeech("http://127.0.0.1:8011/say", payload, fetcher)).rejects.toThrow();

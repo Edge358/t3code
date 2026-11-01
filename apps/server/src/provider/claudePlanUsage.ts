@@ -1,9 +1,11 @@
 import type { SDKControlGetUsageResponse } from "@anthropic-ai/claude-agent-sdk";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Cause from "effect/Cause";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
-import { readAccessToken, withClaudeHeaders } from "./claudeResetCredits.ts";
+import { readOAuthLogin, withClaudeHeaders } from "./claudeResetCredits.ts";
 
 const Window = Schema.Struct({
   utilization: Schema.NullOr(Schema.Finite),
@@ -33,12 +35,28 @@ export type ClaudePlanUsageResult =
 /** Read only plan usage; keep the CLI's broad optional-traffic restriction enabled. */
 export const readClaudePlanUsage = Effect.fn("readClaudePlanUsage")(
   function* (configDir: string, version: string) {
-    const token = yield* readAccessToken(configDir);
-    if (!token) {
+    if ((yield* HostProcess.Platform) === "darwin") {
+      return {
+        message:
+          "Claude limits are unavailable while optional Claude traffic is disabled; the macOS Keychain login is not read.",
+      } satisfies ClaudePlanUsageResult;
+    }
+    const login = yield* readOAuthLogin(configDir);
+    if (!login) {
       return {
         message: "Claude limits need a readable local subscription login.",
       } satisfies ClaudePlanUsageResult;
     }
+    // The CLI renews an expired login on its next turn; a request now would only return 401.
+    if (
+      login.expiresAtMs !== undefined &&
+      login.expiresAtMs <= DateTime.toEpochMillis(yield* DateTime.now)
+    ) {
+      return {
+        message: "Claude's saved login has expired. Limits return after your next Claude turn.",
+      } satisfies ClaudePlanUsageResult;
+    }
+    const token = login.accessToken;
     const client = yield* HttpClient.HttpClient;
     // Fixed first-party endpoint; no redirects, prompt, or transcript data.
     const response = yield* client

@@ -67,8 +67,10 @@ allowed even though `automaticProviderChecks` is false: that flag now describes
 repeated checks. Required provider connections remain possible.
 
 Claude children receive `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`,
-`DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `DISABLE_AUTOUPDATER=1`,
-`DO_NOT_TRACK=1`, `CLAUDE_CODE_ENABLE_TELEMETRY=0`, and `OTEL_SDK_DISABLED=true`.
+`DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `DISABLE_AUTOUPDATER=1`, and
+`CLAUDE_CODE_ENABLE_TELEMETRY=0`. Generic keys such as `DO_NOT_TRACK` and
+`OTEL_SDK_DISABLED` are deliberately not set: the agent's own tool processes inherit
+this environment, and those keys would change the user's dev servers and tests.
 These are child-process opt-outs, not an outbound network enforcement layer.
 
 ## Runtime evidence and changes in conclusions

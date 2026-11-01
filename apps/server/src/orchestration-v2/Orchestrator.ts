@@ -32,6 +32,7 @@ import {
   OrchestrationV2Command,
   type OrchestrationV2InternalCommand,
   type OrchestrationV2LimitRecoveryUpdate,
+  ORCHESTRATION_V2_INTERNAL_COMMAND_TYPES,
   type OrchestrationV2ServerCommand,
   type ThreadPullRequestLink,
   type ThreadPullRequestWatch,
@@ -304,7 +305,8 @@ export class OrchestratorCommandIdConflictError extends Schema.TaggedError<Orche
   }
 }
 
-const isClientCommand = Schema.is(OrchestrationV2Command);
+const isClientCommand = (command: OrchestrationV2ServerCommand) =>
+  !ORCHESTRATION_V2_INTERNAL_COMMAND_TYPES.has(command.type);
 
 export class ThreadHistoryDeletionError extends Schema.TaggedError<ThreadHistoryDeletionError>()(
   "ThreadHistoryDeletionError",
@@ -12965,9 +12967,52 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
       case "thread.delete": {
         const now = yield* DateTime.now;
+        // A queued or running deletion keeps its request id; replanning a member of the group
+        // would point it at an effect that never gets created. The worker marks a dead attempt
+        // failed in the outbox, which is why the status field alone cannot answer this.
+        const isDeletionInFlight = Effect.fn("Orchestrator.isDeletionInFlight")(function* (
+          threadId: ThreadId,
+        ) {
+          const thread = yield* projectionStore
+            .getThread(threadId)
+            .pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause })));
+          if (thread.historyDeletion === undefined) return null;
+          const effect = yield* effectOutbox
+            .get(`effect:${thread.historyDeletion.requestId}:thread.history-delete`)
+            .pipe(mapDispatchError(command));
+          return Option.exists(
+            effect,
+            (entry) => entry.status === "pending" || entry.status === "running",
+          )
+            ? thread
+            : null;
+        });
+        const inFlightRoot = yield* isDeletionInFlight(command.threadId);
+        if (inFlightRoot !== null) {
+          return {
+            events: [
+              {
+                id: yield* mapDispatchError(command)(
+                  idAllocator.allocate.event({
+                    threadId: command.threadId,
+                    commandId: command.commandId,
+                  }),
+                ),
+                type: "thread.metadata-updated" as const,
+                threadId: command.threadId,
+                occurredAt: now,
+                payload: inFlightRoot,
+              },
+            ],
+            effects: [],
+          };
+        }
+        const activeSideChatIds = (yield* Effect.forEach(sideChatIds, (threadId) =>
+          isDeletionInFlight(threadId).pipe(Effect.map((inFlight) => (inFlight ? [] : [threadId]))),
+        )).flat();
         const groupHasNativeHistory =
-          sideChatIds.length > 0 &&
-          (yield* Effect.forEach([...sideChatIds, command.threadId], (threadId) =>
+          activeSideChatIds.length > 0 &&
+          (yield* Effect.forEach([...activeSideChatIds, command.threadId], (threadId) =>
             projectionStore
               .getThreadRecords(threadId, ["providerThreads"])
               .pipe(mapDispatchError(command)),
@@ -12994,37 +13039,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               ),
             );
           if (projection.thread.deletedAt !== null) return { events: [], effects: [] };
-          const previousDeletion = projection.thread.historyDeletion;
-          const previousEffect =
-            previousDeletion === undefined
-              ? Option.none()
-              : yield* effectOutbox
-                  .get(`effect:${previousDeletion.requestId}:thread.history-delete`)
-                  .pipe(mapDispatchError(command));
-          if (
-            Option.exists(
-              previousEffect,
-              (effect) => effect.status === "pending" || effect.status === "running",
-            )
-          ) {
-            return {
-              events: [
-                {
-                  id: yield* mapDispatchError(command)(
-                    idAllocator.allocate.event({
-                      threadId: deletion.threadId,
-                      commandId: deletion.commandId,
-                    }),
-                  ),
-                  type: "thread.metadata-updated" as const,
-                  threadId: deletion.threadId,
-                  occurredAt: now,
-                  payload: projection.thread,
-                },
-              ],
-              effects: [],
-            };
-          }
           return yield* mapDispatchError(command)(
             planThreadDeletion({
               command: deletion,
@@ -13055,7 +13069,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         // The dispatch wrapper holds each side chat's lock, so none can commit after this plan.
         const plans = [
           yield* planDeletion(command),
-          ...(yield* Effect.forEach(sideChatIds, (threadId) =>
+          ...(yield* Effect.forEach(activeSideChatIds, (threadId) =>
             planDeletion({
               ...command,
               commandId: CommandId.make(`${command.commandId}:side-chat:${threadId}`),
@@ -13075,7 +13089,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                         ...effect,
                         request: {
                           ...effect.request,
-                          threadIds: [...sideChatIds, command.threadId],
+                          threadIds: [...activeSideChatIds, command.threadId],
                         },
                       },
                     ]
@@ -13476,7 +13490,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           : [commandThreadId(command)];
       for (const threadId of affected) {
         const thread = yield* findThread(threadId);
-        if (thread?.historyDeletion !== undefined) {
+        // A failed deletion leaves the thread usable; only an in-flight one blocks other commands.
+        if (thread?.historyDeletion?.status === "pending") {
           return yield* new ThreadHistoryDeletionError({
             threadId,
             detail:

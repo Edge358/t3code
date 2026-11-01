@@ -10,32 +10,27 @@
 
 ## Start here: this custom build
 
-**Current checkpoint (2026-10-31):** private.18 includes the final deletion
-confirmation fix. Code and documentation reviews are complete.
-The app and retained profile live inside this checkout.
-Next: install and verify this build on the desktop before testing other machines.
-Use the links below for launch instructions, locations, and validation details.
+The app and its retained profile live inside this checkout under the Git-ignored
+`.local` folder. Which build is current, what was verified, and what comes next
+are recorded in the private build record, not here.
 
 Use this README as the project map. The linked documents contain the details;
 update those documents rather than copying their contents here.
 
-| What you need                                    | Where to go                                                                            |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| Open the private app; find or clean up its files | [Launch, folders, and cleanup](CUSTOM_CHANGES.md#launch-folders-and-cleanup)           |
-| What changed, why, and which defaults changed    | [Custom changes](CUSTOM_CHANGES.md)                                                    |
-| Code review, tests and known limitations         | [Validation record](CUSTOM_CHANGES.md#6-review-fixes-and-validation-record)            |
-| Security/privacy findings and protections        | [Privacy review](docs/custom-build/privacy-review.md)                                  |
-| How to maintain and build this variant           | [Build guidance](CUSTOM_CHANGES.md#9-maintaining-and-building-this-variant)            |
-| Possible separate contributions to upstream      | [Contribution candidates](CUSTOM_CHANGES.md#7-possible-independent-upstream-proposals) |
-| Deferred features and unverified work            | [Remaining scope](CUSTOM_CHANGES.md#8-deferred-work-and-publication-boundary)          |
+| What you need                                                       | Where to go                                                                            |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Open the private app; find or clean up its files                    | [Launch, folders, and cleanup](CUSTOM_CHANGES.md#launch-folders-and-cleanup)           |
+| What changed, why, and which defaults changed                       | [Custom changes](CUSTOM_CHANGES.md)                                                    |
+| Code review, tests and known limitations                            | [Validation record](CUSTOM_CHANGES.md#6-review-fixes-and-validation-record)            |
+| Security/privacy findings and protections                           | [Privacy review](docs/custom-build/privacy-review.md)                                  |
+| Independent code review, fixes applied, brief for the next reviewer | [Independent review](docs/custom-build/independent-review-2026-10-31.md)               |
+| How to maintain and build this variant                              | [Build guidance](CUSTOM_CHANGES.md#9-maintaining-and-building-this-variant)            |
+| Possible separate contributions to upstream                         | [Contribution candidates](CUSTOM_CHANGES.md#7-possible-independent-upstream-proposals) |
+| Deferred features and unverified work                               | [Remaining scope](CUSTOM_CHANGES.md#8-deferred-work-and-publication-boundary)          |
 
-**Private local records:** on the development machine, use the
-[morning installation handoff](docs/local/INSTALL_HANDOFF.md),
-[private index](docs/local/README_T3Code_Review.md),
-[detailed build/decision record](docs/local/T3Code_Private_Build_Record.md), and
-[historical archive](docs/local/T3Code_Document_Archive/2026-10-31_before_consolidation/README.md).
-These optional links point into the Git-ignored `docs/local` folder. Those files
-are intentionally absent from a public clone and require their own backup.
+Machine-specific notes (the build record, the install handoff, and the archive) live in
+the Git-ignored `docs/local` folder on the development machine. They are not part of the
+repository and need their own backup.
 
 ## Upstream overview
 

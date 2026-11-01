@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { validateSpeechServiceAddress } from "@t3tools/shared/speechServiceAddress";
+import { useRef, useState } from "react";
 import { updateClientSettings, useClientSettings } from "../../hooks/useSettings";
 import { Button } from "../ui/button";
 import { DraftInput } from "../ui/draft-input";
@@ -10,9 +11,16 @@ export function ReplySpeechSettings() {
   const [status, setStatus] = useState("");
   const [testing, setTesting] = useState(false);
   const available = Boolean(window.desktopBridge?.speakReply);
+  // The desktop reads the saved address, so a test must wait for the last save to land.
+  const pendingSave = useRef<Promise<void>>(Promise.resolve());
   const save = async (patch: Parameters<typeof updateClientSettings>[0]) => {
+    const saving = updateClientSettings(patch);
+    pendingSave.current = saving.then(
+      () => undefined,
+      () => undefined,
+    );
     try {
-      await updateClientSettings(patch);
+      await saving;
       setStatus("");
     } catch {
       setStatus("Could not save the speech setting. Please try again.");
@@ -45,9 +53,17 @@ export function ReplySpeechSettings() {
             className="w-80 max-w-full"
             value={settings.speechServiceAddress}
             disabled={!available}
-            onCommit={(value) =>
-              void save({ speechServiceAddress: value.trim(), readRepliesAloud: false })
-            }
+            onCommit={(value) => {
+              const address = value.trim();
+              if (address.length > 0) {
+                const checked = validateSpeechServiceAddress(address);
+                if (typeof checked === "string") {
+                  setStatus(checked);
+                  return;
+                }
+              }
+              void save({ speechServiceAddress: address, readRepliesAloud: false });
+            }}
           />
         }
       />
@@ -65,11 +81,10 @@ export function ReplySpeechSettings() {
             onClick={async () => {
               setTesting(true);
               try {
-                // Wait for any pending address save before asking the desktop to read it.
-                await updateClientSettings({});
+                await pendingSave.current;
                 await window.desktopBridge!.speakReply!({
                   text: "",
-                  source: "codex",
+                  source: "t3code",
                   session: "t3code-speech-test",
                   test: true,
                 });

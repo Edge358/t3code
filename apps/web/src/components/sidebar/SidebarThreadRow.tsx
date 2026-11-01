@@ -360,6 +360,25 @@ function SidebarThreadTooltip({
             </div>
           </div>
         ) : null}
+        {thread.historyDeletion ? (
+          <div
+            className={cn(
+              "flex min-w-0 items-center gap-2",
+              thread.historyDeletion.status === "failed" ? "text-error" : "text-foreground/75",
+            )}
+          >
+            {thread.historyDeletion.status === "failed" ? (
+              <CircleAlertIcon className="size-3 shrink-0 stroke-current" />
+            ) : (
+              <CircleDashedIcon className="size-3 shrink-0 stroke-current" />
+            )}
+            <div className="min-w-0 truncate">
+              {thread.historyDeletion.status === "failed"
+                ? "Deletion incomplete. Delete again to retry."
+                : "Deleting conversation history…"}
+            </div>
+          </div>
+        ) : null}
       </ThreadHoverCard>
     </ThreadHoverCardPopup>
   );

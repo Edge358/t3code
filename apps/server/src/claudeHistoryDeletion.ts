@@ -24,16 +24,17 @@ export async function deleteClaudeHistory(
   );
   const projectRoot = await exists(projects);
   if (projectRoot === undefined) return "absent";
-  const actualRoot = await NodeFSP.realpath(projects);
-  if (projectRoot.isSymbolicLink() || NodePath.relative(projects, actualRoot) !== "") {
-    throw new Error("Claude history storage resolves through a link; deletion was not attempted.");
+  if (projectRoot.isSymbolicLink()) {
+    throw new Error("Claude history storage is a link; deletion was not attempted.");
   }
+  // A redirected profile or junction above ~/.claude is ordinary on Windows; work on the real folder.
+  const root = await NodeFSP.realpath(projects);
   const matches: Array<{ transcript: string; children: string }> = [];
-  for (const entry of await NodeFSP.readdir(projects, { withFileTypes: true })) {
+  for (const entry of await NodeFSP.readdir(root, { withFileTypes: true })) {
     if (entry.isSymbolicLink())
       throw new Error("Claude project history contains a link; deletion was not attempted.");
     if (!entry.isDirectory()) continue;
-    const parent = NodePath.join(projects, entry.name);
+    const parent = NodePath.join(root, entry.name);
     const transcript = NodePath.join(parent, `${sessionId}.jsonl`);
     const children = NodePath.join(parent, sessionId);
     const file = await exists(transcript);

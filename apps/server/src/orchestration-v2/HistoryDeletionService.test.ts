@@ -36,6 +36,7 @@ it.effect.each([
   "worker-failed",
   "side-chat",
   "side-chat-partial",
+  "side-chat-double-delete",
   "detached-session",
 ] as const)(
   "persists a mixed-provider deletion and handles %s without losing retry references",
@@ -44,7 +45,10 @@ it.effect.each([
     const liveSessionId = ProviderSessionId.make("detached-writer-session");
     let writerOpen = false;
     let failClaude = scenario === "partial" || scenario === "side-chat-partial";
-    const hasSideChat = scenario === "side-chat" || scenario === "side-chat-partial";
+    const hasSideChat =
+      scenario === "side-chat" ||
+      scenario === "side-chat-partial" ||
+      scenario === "side-chat-double-delete";
     const adapters = ["codex", "claudeAgent", "other"].map((name) => {
       const driver = ProviderDriverKind.make(name);
       const instanceId = ProviderInstanceId.make(name);
@@ -272,6 +276,14 @@ it.effect.each([
         threadId: target,
       });
       assert.isNull((yield* projections.getThread(target)).deletedAt);
+      if (scenario === "side-chat-double-delete") {
+        // A second Delete while the first is queued is a no-op for the whole group.
+        yield* orchestrator.dispatch({
+          type: "thread.delete",
+          commandId: CommandId.make("delete:second"),
+          threadId: target,
+        });
+      }
       if (scenario === "restart" || scenario === "worker-failed") {
         const claimed = yield* outbox.claimNext({ workerId: "lost-worker" });
         assert.isTrue(Option.isSome(claimed));
@@ -315,7 +327,7 @@ it.effect.each([
       assert.isNull((yield* projections.getThread(neighbor)).deletedAt);
       assert.notInclude(calls, "unrelated");
       if (scenario === "detached-session") assert.isFalse(writerOpen);
-      if (scenario === "side-chat") {
+      if (scenario === "side-chat" || scenario === "side-chat-double-delete") {
         assert.isNotNull((yield* projections.getThread(childId)).deletedAt);
         assert.equal(calls[0], "child-history");
         yield* orchestrator.awaitThreadDeletion(target);
@@ -362,6 +374,16 @@ it.effect.each([
       if (scenario === "partial") {
         assert.notInclude(first.historyDeletion!.message, "Shared histories");
         assert.isNull(first.deletedAt);
+        // A failed deletion is not a one-way door: ordinary commands work again.
+        const archived = yield* orchestrator
+          .dispatch({
+            type: "thread.archive",
+            commandId: CommandId.make("archive-after-failed-deletion"),
+            threadId: target,
+          })
+          .pipe(Effect.result);
+        assert.equal(archived._tag, "Success");
+        yield* worker.drain();
         failClaude = false;
         yield* orchestrator.dispatch({
           type: "thread.delete",

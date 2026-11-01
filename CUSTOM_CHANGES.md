@@ -1,7 +1,10 @@
 # Custom Windows build: changes and rationale
 
-Documentation checkpoint: 2026-10-31. Upstream base: T3 Code `v0.1.6`, commit
-`2359643cffa6ba9ee84d6f2694b935de54a8013e`. Last packaged build: `0.1.6-private.18` (final confirmation correction; private.17 manual deletion/retry checks retained).
+Upstream base: T3 Code `v0.1.6`, commit `2359643cffa6ba9ee84d6f2694b935de54a8013e`,
+tagged locally as `private-base-v0.1.6`. Build numbers, test runs, and acceptance
+results live in the private build record under `docs/local`; the privacy review keeps
+its own dated runtime evidence. This document describes how the variant behaves now
+and why.
 
 T3 Code is the upstream project by T3 Tools Inc. This document describes a locally
 modified build, not an official release or an upstream-endorsed product. The
@@ -10,8 +13,12 @@ is maintained on `edge358-custom-build`; no hosted fork or pull request has
 been published.
 
 The work started with a privacy review and expanded to readability, project
-navigation, settings defaults, and optional speech. Personal preferences are
-separated below from changes that could be proposed independently upstream.
+navigation, settings defaults, optional speech, and synchronized deletion of
+provider histories. Personal preferences are separated below from changes that
+could be proposed independently upstream. **If you maintain upstream T3 Code and
+want to see what might be worth taking, start at
+[section 7](#7-possible-independent-upstream-proposals)**; each row names the
+problem and points to the section that describes the change and its tests.
 The companion [privacy review](docs/custom-build/privacy-review.md) records
 findings, implementation choices, evidence, and unresolved review areas.
 
@@ -104,6 +111,11 @@ Worktree cleanup remains off. Browser-artifact expiry can make old capture links
 stop opening; current logs are kept. These settings do not add conversation or
 provider-history deletion. No personal projects directory, provider credential,
 speech address, or TV-specific size is built into the defaults.
+
+Because provider update checks default to off and app auto-update is disabled,
+newly released models do not appear on their own. Enable the setting under
+**Settings → Maintenance** and refresh provider status when you want the current
+model catalog; see [Updating](docs/user/updating.md).
 
 The two auto-settle defaults govern inactivity and merge behavior. They do not
 remove manual Settle or rewrite every existing close/settle rule. A thread's
@@ -201,146 +213,62 @@ are governed by the app. Model use still requires provider connections.
 The star-request popup is suppressed as a personal preference. The change does
 not remove upstream credit or claim authorship of T3 Code.
 
-## 6. Review fixes and validation record
+## 6. Verification approach
 
-The private.13 review removed a stale table-size rule/comment, removed the
-no-project disabled state from New Thread, completed settings-reset coverage,
-and reconciled tests with the private favicon policy. An unknown-scheme test
-fixture changed from a Windows drive-like `d:` value to `unknown:`; link runtime
-behavior was not changed by that test correction.
+Every behavior change ships with focused tests beside the code it touches, and
+each build is checked the same way before packaging:
 
-Two existing desktop settings tests repeatedly failed while creating symlink
-fixtures on Windows. They now use the repository's existing capability probe
-and skip only those fixtures where the probe fails. Ordinary persistence tests
-still run. No Windows privilege or Developer Mode setting was changed. Skipped
-symlink behavior is not counted as verified on this host.
+- Focused suites for the changed areas, run with `pnpm exec vp test run <files>`.
+  The deletion, provider-session, Claude environment, usage fallback, speech, and
+  private-policy suites are the ones most often affected.
+- `tsc --noEmit` for every package whose source changed (`apps/server`,
+  `apps/web`, `apps/desktop`, `apps/mobile`, `packages/contracts`).
+- `pnpm exec vp fmt --check` and `pnpm exec vp lint` on the changed files.
+- A Windows x64 package, an unpacked launch against the retained profile, and a
+  local backend health check.
 
-The private.13 accumulated-change validation: **37 test files passed; 445 tests passed;
-four skipped; zero failed.** Six affected packages passed typechecking (web,
-desktop, server, contracts, shared, provider-core). Changed-code lint/format
-checks passed. This was a targeted accumulated-change run, not the entire
-repository or a cross-platform certification. Earlier focused runs overlap and
-must not be added to this count.
+`vp run check:changed` is the upstream way to run all of this at once, but it
+spawns a global `vp` binary that is not installed on the development machine; run
+the component checks by hand or install `vp` per the README.
 
-The native Windows x64 packaging workflow completed. The unpacked private.13 app
-was launched and inspected; its unsigned installer was produced but not executed.
-The two symlink-test guards were added after packaging; they do not change the
-runtime binary. This documentation pass makes no additional runtime change.
-Earlier bounded network observations belong to private.2, not a new complete
-network audit of private.13.
+Two desktop settings tests create symlink fixtures and skip when Windows cannot
+create links without Developer Mode. They use the repository's existing
+capability probe; the skipped cases are not counted as verified on this host.
 
-The private.14 correction fixes **Claude: Could not read limits**. The installed
-Claude CLI's essential-traffic restriction also blocks its OAuth usage lookup.
-Its SDK response reports limits
-available but returns no limits. A diagnostic direct GET to the provider usage
-endpoint succeeded with HTTP 200 and a weekly window, without enabling reporting
-or sending a model prompt. The page already requests refresh on opening; another
-UI refresh trigger alone would not solve this. A narrowly scoped usage lookup
-now supplies missing SDK usage data for eligible first-party subscription
-accounts. It keeps the broad opt-out, rejects redirects, times out after five
-seconds, and uses the selected account's credentials. API-key, custom endpoint,
-and environment-token configurations do not use this fallback. Authentication
-and usage-read failure remain distinct, with clearer failure messages.
-
-Sources: [claudePlanUsage.ts](apps/server/src/provider/claudePlanUsage.ts),
-[ClaudeProvider.ts](apps/server/src/provider/ClaudeProvider.ts), and
-[ClaudeDriver.ts](apps/server/src/provider/Drivers/ClaudeDriver.ts). The helper
-reuses credential/header functions from `claudeResetCredits.ts`; it neither
-consumes a reset credit nor sends a model prompt.
-
-Private.14 validation: **six focused test files, 99 passing tests, no skips or
-failures**, server typechecking, and changed-code lint passed. These overlap
-earlier suites and are not additive. The Windows build passed, and the unpacked
-app displayed Claude weekly limits both on opening Usage and after Refresh.
-Its unsigned installer was produced but not executed. This targeted check is
-not a fresh comprehensive network audit. See the privacy ledger for credential
-platform and response-field limitations.
-
-The follow-up review found a credential-selection edge case for inherited
-relative `CLAUDE_CONFIG_DIR` values. The usage fallback now reuses the existing
-configuration resolver with the capability probe's working directory, rather
-than resolving that relative path from the server's working directory. Explicit
-home settings still take precedence. A regression exercises credential selection
-from the probe-relative folder. The change affects this fallback; it does not
-redesign other existing credential readers.
-
-Review validation passed 118 tests across seven files, with two symlink-dependent
-skill fixtures skipped because this Windows host cannot create their links.
-Those fixtures now use the existing capability check; other skill tests still
-run. Server typechecking and changed-code lint passed. These totals overlap the
-previous runs. The focused review found no other release-blocking issue within
-the new usage fallback's account, transport, mapping and failure paths.
-Private.15 packages the correction and was reopened in the same isolated profile;
-Claude weekly data remained visible after a completed manual Refresh. The
-unsigned installer was produced but not executed.
+Build numbers, per-build test counts, manual acceptance results, network
+captures, and the history of fixes between builds are kept in the private build
+record under `docs/local`, which is ignored by Git. Counts from overlapping runs
+are never added together. An independent code review of the whole variant, with
+its findings and the fixes applied, is in
+[docs/custom-build/independent-review-2026-10-31.md](docs/custom-build/independent-review-2026-10-31.md).
 
 ### Synchronized local conversation deletion
 
-Delete now addresses every recorded Codex/Claude native history associated with
-the thread, including provider switches. Confirmation is required. The server
-keeps deletion progress durably and waits for provider shutdown and usage-cache
-persistence before removing histories. Partial failures keep the thread visible
-for retry; successful targets are not repeated. Histories referenced by retained
-threads, including native children that would be removed with their parent, are
-protected. Other providers' native histories remain, as the confirmation states.
+Delete addresses every recorded Codex and Claude native history associated with
+the thread, including histories from earlier provider selections. Confirmation is
+always required. The server records deletion progress durably, waits for provider
+shutdown and usage-cache persistence, then removes histories as an outbox effect.
+The RPC returns as soon as the request is recorded; clients follow progress
+through the thread shell, which the sidebar, chat view, and mobile list display.
 
-Settle, Archive and Unarchive do not invoke native deletion. Project removal
-keeps its existing app-only cleanup behavior. Existing optional worktree cleanup
-is unchanged and separate from conversation-history deletion. Available usage
-continues under the existing 92-day cache-retention policy. Deletion uses each
-provider instance's configured local storage; it does not search moved histories
-in old provider homes, backups, global prompt indexes or cloud accounts.
+A partial failure keeps the thread visible and usable, and marks it so Delete can
+be chosen again to retry only the unfinished targets. Histories referenced by
+retained threads, including native children, are protected. Other providers'
+native histories remain, as the confirmation states. Settle, Archive, and
+Unarchive do not invoke native deletion. Project removal keeps the upstream
+app-only cleanup.
 
-Validation: 128 focused tests passed, with two pre-existing platform skips;
-server, web, contracts, provider-core and client-runtime typechecks and changed
-code lint passed. Tests cover mixed histories, partial success/retry, missing
-histories, restart recovery, stopped/slow-closing sessions, shared histories,
-side chats, and usage rescan/restart. Installed Codex 0.166.0 deleted active and
-archived disposable native histories while a neighbor still resumed. Installed
-Claude SDK 0.3.276 removed a disposable transcript and child directory, handled
-an orphaned child directory on retry, and protected a retained child. These native
-checks required no paid model turns.
+Codex deletion first probes whether the installed Codex honors the
+`ancestorThreadId` listing filter, which newer releases support but the vendored
+protocol schema does not declare. When the filter is ignored, the history is listed
+unfiltered and descendants are found by following each item's `parentThreadId`, so a
+protected child is still kept on an older Codex. Claude deletion works on the real
+path of the Claude home so junctions and redirected profiles behave normally, and
+still refuses to follow links inside the history folders.
 
-User-driven Windows checks on private.16 confirmed cancellation, Codex deletion,
-resume of a retained Codex conversation, and deletion of both histories in a
-mixed Codex/Claude thread. Native files were checked independently. The next
-resumed-thread deletion failed because a detached display binding hid the still
-live provider process from the deletion lookup. The thread and retry references
-were correctly retained.
-
-Private.17 resolves provider processes from the persisted native thread records
-as well as current bindings, and only mentions shared histories when one was
-actually retained. A regression failed before the fix and passed afterward;
-all eight deletion-service cases, the shared-session protection case, server
-typecheck and focused lint pass. An isolated two-process Codex test reproduced
-the exact active-writer rejection and proved deletion succeeds after writer exit,
-without a paid turn. The user's retry succeeded in private.17, and the last disposable thread was
-deleted successfully. Native histories were verified absent. The user then
-removed the empty project through Settings and confirmed it disappeared from
-the project picker. Project removal intentionally remains T3-only; the user
-chose to keep that behavior separate from synchronized thread deletion.
-
-The repository's Browser panel tools were unavailable; UI actions were performed
-by the user, with screenshots and read-only state checks. No substitute UI
-automation was used. Mobile, remote clients and installer execution remain
-unverified. Existing optional worktree behavior is unchanged.
-
-### Final code review after consolidation
-
-The review found that the shared confirmed-delete action could fall through to
-deletion when its dialog service was unavailable. It now returns a failure without
-sending a deletion request. Regression checks cover an unavailable, cancelled,
-or failed dialog, and a previously disabled confirmation preference. Another
-integration case verifies that a failed side-chat cleanup keeps both child and
-parent available, then completes child cleanup before the parent on retry.
-
-The final focused suite passed 176 tests with two existing platform skips.
-Server, web, contracts, provider-core and client-runtime typechecks passed;
-web/server checks were repeated after the correction. No worktree or whole-project
-removal behavior was changed. Private.18 packaging validated 53 Windows payload files and 12 sidecar natives;
-the app reopened with its retained profile and a healthy local backend. The new
-missing-dialog case is covered by tests, not an automated desktop UI run. Details
-are in the private build record. No commit or publication is part of this review.
+Deletion uses each provider instance's configured local storage. It does not
+search moved histories in old provider homes, backups, global prompt indexes, or
+cloud accounts, and it is not a secure erase.
 
 ## 7. Possible independent upstream proposals
 
@@ -349,18 +277,22 @@ every change is an upstream bug. Check the current contribution requirements
 before any submission; the pinned [CONTRIBUTING.md](CONTRIBUTING.md) describes
 limited review capacity, focused scope, and prior discussion for product changes.
 
-| Candidate                                      | Concrete problem to discuss                                                                   | What should stay separate                                                                            |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Larger consistent font limits                  | One text control cannot reach the readable size available in another.                         | Personal 24/22/18 preferences and other default changes.                                             |
-| Configurable app context-menu text             | Native action menus remain too small despite larger app text.                                 | Broad restyling; verify keyboard/accessibility/platform behavior independently.                      |
-| Shared chat/code size                          | A single reply mixes unexpectedly different sizes; existing size controls are confusing.      | Treat as an optional product design discussion, not a universal fix.                                 |
-| Add-folder action in new-thread chooser        | Choosing a new conversation offers existing projects but no direct way to add a folder.       | Project grouping defaults and global shortcut behavior can be reviewed separately.                   |
-| Explicit remote-image loading                  | Displaying a reply can contact an image host before a click.                                  | Fixed removal of analytics/cloud features.                                                           |
-| Skip identity reads when reporting is disabled | Disabling reporting should also avoid unnecessary identity collection.                        | Hard-coded private-build policy.                                                                     |
-| Optional external speech queue                 | Users with an existing local speech service can hear completed replies.                       | Personal adapter patches; needs a portable integration design.                                       |
-| Symlink capability guards                      | Unprivileged Windows tests fail during fixture setup.                                         | Runtime settings changes; preserve real link validation on capable hosts.                            |
-| Less prominent placeholder                     | Hint text resembles entered text at large sizes.                                              | Other typography choices.                                                                            |
-| Claude subscription usage fallback             | The CLI can return no usage under its optional-traffic restriction despite a working account. | Private telemetry policy; assess supported auth modes and provider schema before proposing upstream. |
+| Candidate                                                                                     | Concrete problem to discuss                                                                                                                                                                                                                                    | What should stay separate                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Larger consistent font limits                                                                 | One text control cannot reach the readable size available in another.                                                                                                                                                                                          | Personal 24/22/18 preferences and other default changes.                                                                                                                                            |
+| Configurable app context-menu text                                                            | Native action menus remain too small despite larger app text.                                                                                                                                                                                                  | Broad restyling; verify keyboard/accessibility/platform behavior independently.                                                                                                                     |
+| Shared chat/code size                                                                         | A single reply mixes unexpectedly different sizes; existing size controls are confusing.                                                                                                                                                                       | Treat as an optional product design discussion, not a universal fix.                                                                                                                                |
+| Add-folder action in new-thread chooser                                                       | Choosing a new conversation offers existing projects but no direct way to add a folder.                                                                                                                                                                        | Project grouping defaults and global shortcut behavior can be reviewed separately.                                                                                                                  |
+| Explicit remote-image loading                                                                 | Displaying a reply can contact an image host before a click.                                                                                                                                                                                                   | Fixed removal of analytics/cloud features.                                                                                                                                                          |
+| Skip identity reads when reporting is disabled                                                | Disabling reporting should also avoid unnecessary identity collection.                                                                                                                                                                                         | Hard-coded private-build policy.                                                                                                                                                                    |
+| Optional external speech queue                                                                | Users with an existing local speech service can hear completed replies.                                                                                                                                                                                        | Personal adapter patches; needs a portable integration design.                                                                                                                                      |
+| Symlink capability guards                                                                     | Unprivileged Windows tests fail during fixture setup.                                                                                                                                                                                                          | Runtime settings changes; preserve real link validation on capable hosts.                                                                                                                           |
+| Less prominent placeholder                                                                    | Hint text resembles entered text at large sizes.                                                                                                                                                                                                               | Other typography choices.                                                                                                                                                                           |
+| Claude subscription usage fallback                                                            | The CLI can return no usage under its optional-traffic restriction despite a working account. Includes clear messages for an expired saved login and for macOS Keychain storage.                                                                               | Private telemetry policy; assess supported auth modes and provider schema before proposing upstream.                                                                                                |
+| Synchronized native history deletion ([section 6](#synchronized-local-conversation-deletion)) | Deleting a thread in T3 leaves its Codex and Claude histories on disk, where the provider CLIs still list them. The server-side design (durable progress, retry of unfinished targets, protection of histories shared with kept threads) is provider-agnostic. | The always-confirm choice and the hidden delete-confirmation setting are local preferences. Codex's `ancestorThreadId` filter is undeclared in the vendored schema and needs a schema update first. |
+| Claude home behind a Windows junction                                                         | Code that refuses symlinked history folders also refused a Claude home reached through a junction or redirected profile. Resolving the real path first keeps the guard without the false refusal.                                                              | Nothing; small and self-contained, with a test.                                                                                                                                                     |
+| Desktop profile location override                                                             | There is no supported way to run a second desktop copy with its own Electron profile without moving `%APPDATA%` for every child process. A `T3CODE_DESKTOP_APP_DATA` override relocates only the profile.                                                      | The launcher scripts and `.local` layout are local.                                                                                                                                                 |
+| `check:changed` on Windows                                                                    | `vp run check:changed` spawns a global `vp` that a `pnpm`-only install does not have, so the script fails before any check runs.                                                                                                                               | Local workaround of running the pieces by hand.                                                                                                                                                     |
 
 Automatic-settle defaults, cleanup retention, suppressed promotion, and fixed
 privacy restrictions are local preferences. They need not accompany a useful
@@ -369,18 +301,21 @@ a fork is a separately maintained copy. Neither is required to keep this record.
 
 ## 8. Deferred work and publication boundary
 
-Synchronized local deletion and the private.17 correction passed the manual
-in-app deletion and retry checks. Archive/restore, thread-age labels, idle-session policy and
-cross-thread communication were not redesigned. Local deletion must not be
-presented as cloud deletion. No personal projects directory is hard-coded.
+Archive/restore, thread-age labels, idle-session policy, and cross-thread
+communication were not redesigned. Local deletion must not be presented as cloud
+deletion. No personal projects directory is hard-coded.
 
-Before any eventual public release, choose its identity/version, preserve
+Before any eventual public release, choose its identity and version, preserve
 upstream notices, review the selected files, and document the support scope.
-Fresh installation, laptop/DPI testing, and network speech remain unverified.
-App auto-updates are disabled, so future upstream changes require deliberate
-review and rebuilding. The private record, account details, raw network traces,
-real conversation screenshots, speech adapters, and test profile are not part of
-this shareable document. Preparing these notes does not publish the working tree.
+Fresh installation, laptop/DPI testing, and network-hosted speech remain
+unverified. App auto-updates are disabled, so future upstream changes require
+deliberate review and rebuilding. The private record, account details, raw
+network traces, real conversation screenshots, speech adapters, and the test
+profile are not part of this shareable document.
+
+Open review items that were deliberately left alone are listed at the end of the
+[independent review](docs/custom-build/independent-review-2026-10-31.md); they are
+taste decisions (chat heading sizes, native context menus) rather than defects.
 
 ## 9. Maintaining and building this variant
 
@@ -392,12 +327,12 @@ is needed for this development copy.
 
 All paths below are relative to the repository folder:
 
-| Location                | Contents                                          | Cleanup guidance                                                                   |
-| ----------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `.local/builds/current` | Complete unpacked app and latest installer        | Close the app before replacing its build. Keep the app's companion files together. |
-| `.local/profile`        | Conversations, settings, and other saved app data | Keep this during build cleanup; back it up separately from Git.                    |
-| `.local/records`        | Verification records and supporting backups       | Retain the evidence and backups you still need.                                    |
-| `build/desktop-staging` | Temporary packaging files                         | Normally removed automatically after packaging; do not remove during a build.      |
+| Location                | Contents                                          | Cleanup guidance                                                                        |
+| ----------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `.local/builds/current` | Complete unpacked app and latest installer        | Close the app before replacing its build. Keep the app's companion files together.      |
+| `.local/profile`        | Conversations, settings, and other saved app data | Irreplaceable. Never `git clean -x`. Back up with `scripts/backup-private-profile.ps1`. |
+| `.local/records`        | Verification records and supporting backups       | Retain the evidence and backups you still need.                                         |
+| `build/desktop-staging` | Temporary packaging files                         | Normally removed automatically after packaging; do not remove during a build.           |
 
 On this development machine, disposable material blocked from automatic cleanup
 is moved to `../temp/delete` (the parent GitHub folder's `temp/delete` directory).
@@ -407,20 +342,23 @@ and saved profile do not belong there.
 The profile, records, and generated builds are ignored by Git. Committing source
 does not back them up. Your actual project folders remain wherever you chose them.
 The launcher preserves disabled telemetry and updates, enables no debug port,
-and records its process information in `.local/records/launch.json`.
+and records its process information in `.local/records/launch.json`. It relocates
+only the Electron profile, through the `T3CODE_DESKTOP_APP_DATA` override added in
+this variant, so `%APPDATA%` stays normal for the provider CLIs it starts.
 
 ### Installing on this or another Windows machine
 
-The private.18 Windows x64 installer is
-`.local/builds/current/T3-Code-0.1.6-private.18-x64.exe`. Copy only that EXE for
-installation; the blockmap and build metadata are not needed. This installer is
-unsigned. It installs supporting files, so the unpacked app EXE alone is not a
-portable single-file application.
+Each Windows build produces `T3-Code-<version>-x64.exe` beside its `win-unpacked`
+folder under `.local/builds`. Copy only that EXE for installation; the blockmap
+and build metadata are not needed. The installer is unsigned. It installs
+supporting files, so the unpacked app EXE alone is not a portable single-file
+application. Which build is current and whether its installer has been run are
+recorded in the private build record.
 
-Installer execution is still unverified at this checkpoint. The next step is
-installation and acceptance on the development desktop, followed by other
-machines only after that succeeds. Launch the installed shortcut for acceptance;
-`Start Private T3.cmd` opens the separate development copy and saved test profile.
+Launch the installed shortcut for acceptance; `Start Private T3.cmd` opens the
+separate development copy and saved test profile instead. Pass
+`-BuildDir builds\<name>` to `scripts/start-private.ps1` to open a build that is
+not the current one with the same profile.
 
 A normal installed launch uses the user's `.t3/userdata` backend data and
 `%APPDATA%/t3code-v2` desktop profile unless environment overrides are present.
@@ -429,6 +367,31 @@ preferences and speech defaults therefore differ from the saved test profile.
 Each machine needs its own Codex/Claude installation and sign-in; existing working
 installations/sign-ins can be reused. The installer does not transfer accounts,
 conversations, settings, or this machine's custom speech-hook changes.
+
+#### Matching the saved test profile after installation
+
+Checked on 2026-11-01 by decoding the saved test profile against this build's
+schema defaults. Every saved preference equals the build's default except these
+four. Set them in Settings after the first launch and the installed app matches
+the development copy.
+
+| Setting                                           | Fresh install | Test profile                |
+| ------------------------------------------------- | ------------- | --------------------------- |
+| Settings → Appearance → Interface font size       | 16px          | 24px                        |
+| Settings → Appearance → Code font size (chat too) | 13px          | 22px                        |
+| Settings → Chat → Read replies aloud              | Off           | On                          |
+| Settings → Chat → Speech service address          | blank         | `http://127.0.0.1:8011/say` |
+
+The speech address only works on a machine where that speech queue is running.
+Everything in section 3 (project-organized sidebar, auto-settle off, cleanup after
+30 days, update checks off, 18px right-click menus) is already the default and
+needs no change. Codex/Claude sign-in and project folders are per machine.
+
+The shortcut: before the first launch, copy `client-settings.json` from the test
+profile's `t3-data\userdata` folder into `%USERPROFILE%\.t3\userdata\`. That also
+carries the onboarding-completed marker, so the welcome flow is skipped. Server
+settings (`settings.json`) need no copy; the test profile's values there are the
+defaults.
 
 ### Building and maintaining the source
 
@@ -452,7 +415,7 @@ Close the private app before packaging. From the repository root, choose an
 unused build version; the default output is `.local/builds/current`:
 
 ```powershell
-pnpm.cmd run dist:desktop:win:x64 --build-version 0.1.6-private.18
+pnpm.cmd run dist:desktop:win:x64 --build-version 0.1.6-private.<n>
 ```
 
 The Git-ignored `.local` directory contains all persistent private build and

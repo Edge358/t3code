@@ -996,8 +996,8 @@ export const layerWithOptions = (
         if (pending !== undefined) {
           yield* Fiber.join(closeFiber).pipe(
             Effect.flatMap((exit) => {
+              pendingClosures.delete(scope);
               if (Exit.isSuccess(exit)) {
-                pendingClosures.delete(scope);
                 return Deferred.succeed(pending.done, undefined);
               }
               return Deferred.fail(
@@ -2399,7 +2399,16 @@ export const layerWithOptions = (
             [...pendingClosures.values()].filter(
               (pending) => pending.providerSessionId === providerSessionId,
             ),
-            (pending) => Deferred.await(pending.done),
+            (pending) =>
+              Deferred.await(pending.done).pipe(
+                // A failed finalizer has still finished; only an unfinished close keeps callers waiting.
+                Effect.catch((error) =>
+                  Effect.logWarning("orchestration-v2.provider-session-await-closed-failed", {
+                    providerSessionId,
+                    cause: error.cause,
+                  }),
+                ),
+              ),
             { discard: true },
           ).pipe(
             Effect.timeout(RELEASE_SCOPE_CLOSE_TIMEOUT_MS),

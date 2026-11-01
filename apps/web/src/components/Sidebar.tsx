@@ -900,7 +900,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const confirmThreadDelete = true;
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
@@ -2442,18 +2441,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         return;
       }
       if (clicked.value !== "delete") return;
-      if (confirmThreadDelete) {
-        const confirmed = await settlePromise(() =>
-          api.dialogs.confirm(
-            [
-              `Delete ${count} thread${count === 1 ? "" : "s"}?`,
-              "This deletes these T3 conversations and all linked local Codex and Claude histories. Histories from other providers remain. Project files and cloud conversations are not deleted.",
-            ].join("\n"),
-            { variant: "destructive" },
-          ),
-        );
-        if (confirmed._tag === "Failure" || !confirmed.value) return;
-      }
+      const confirmed = await settlePromise(() =>
+        api.dialogs.confirm(
+          [
+            `Delete ${count} thread${count === 1 ? "" : "s"}?`,
+            "This deletes these T3 conversations and all linked local Codex and Claude histories. Histories from other providers remain. Project files and cloud conversations are not deleted.",
+          ].join("\n"),
+          { variant: "destructive" },
+        ),
+      );
+      if (confirmed._tag === "Failure" || !confirmed.value) return;
       if (
         !checkThreadOperations(
           threadKeys.flatMap((threadKey) => {
@@ -2806,18 +2803,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             return;
           }
           case "delete": {
-            if (confirmThreadDelete) {
-              const confirmed = await settlePromise(() =>
-                api.dialogs.confirm(
-                  [
-                    `Delete thread "${thread.title}"?`,
-                    "This deletes the T3 conversation and all linked local Codex and Claude histories. Histories from other providers remain. Project files and cloud conversations are not deleted.",
-                  ].join("\n"),
-                  { variant: "destructive" },
-                ),
-              );
-              if (confirmed._tag === "Failure" || !confirmed.value) return;
-            }
+            const confirmed = await settlePromise(() =>
+              api.dialogs.confirm(
+                [
+                  `Delete thread "${thread.title}"?`,
+                  "This deletes the T3 conversation and all linked local Codex and Claude histories. Histories from other providers remain. Project files and cloud conversations are not deleted.",
+                ].join("\n"),
+                { variant: "destructive" },
+              ),
+            );
+            if (confirmed._tag === "Failure" || !confirmed.value) return;
             const result = await deleteThread(threadRef);
             if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
               const error = squashAtomCommandFailure(result);

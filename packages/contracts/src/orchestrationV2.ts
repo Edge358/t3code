@@ -3575,6 +3575,11 @@ const OrchestrationV2InternalCommand = Schema.Union([
 ]);
 export type OrchestrationV2InternalCommand = typeof OrchestrationV2InternalCommand.Type;
 
+/** Lets the server tell internal commands apart by type without walking the client schema. */
+export const ORCHESTRATION_V2_INTERNAL_COMMAND_TYPES: ReadonlySet<string> = new Set(
+  OrchestrationV2InternalCommand.members.map((member) => member.fields.type.literal),
+);
+
 export type OrchestrationV2ServerCommand = OrchestrationV2Command | OrchestrationV2InternalCommand;
 
 export const ORCHESTRATION_V2_WS_METHODS = {

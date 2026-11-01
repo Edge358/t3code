@@ -18,7 +18,12 @@ const REQUEST_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const COMPLETE_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 const Credentials = Schema.Struct({
-  claudeAiOauth: Schema.optional(Schema.Struct({ accessToken: Schema.optional(Schema.String) })),
+  claudeAiOauth: Schema.optional(
+    Schema.Struct({
+      accessToken: Schema.optional(Schema.String),
+      expiresAt: Schema.optional(Schema.Unknown),
+    }),
+  ),
 });
 const Config = Schema.Struct({
   oauthAccount: Schema.optional(
@@ -134,13 +139,23 @@ const readJson = Effect.fn("claudeResetCredits.readJson")(function* <S extends S
   );
 });
 
-export const readAccessToken = Effect.fn("claudeResetCredits.readAccessToken")(function* (
+/** macOS keeps the login in the Keychain, which this reader does not open. */
+export const readOAuthLogin = Effect.fn("claudeResetCredits.readOAuthLogin")(function* (
   configDir: string,
 ) {
   if ((yield* HostProcess.Platform) === "darwin") return undefined;
   const path = yield* Path.Path;
   const credentials = yield* readJson(Credentials, path.join(configDir, ".credentials.json"));
-  return credentials.claudeAiOauth?.accessToken?.trim() || undefined;
+  const accessToken = credentials.claudeAiOauth?.accessToken?.trim();
+  if (!accessToken) return undefined;
+  const expiresAt = credentials.claudeAiOauth?.expiresAt;
+  return { accessToken, expiresAtMs: typeof expiresAt === "number" ? expiresAt : undefined };
+});
+
+const readAccessToken = Effect.fn("claudeResetCredits.readAccessToken")(function* (
+  configDir: string,
+) {
+  return (yield* readOAuthLogin(configDir))?.accessToken;
 });
 
 export const withClaudeHeaders = (token: string, version: string) =>

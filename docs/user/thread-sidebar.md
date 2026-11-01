@@ -299,7 +299,8 @@ Confirmation is required even if it was previously disabled.
 The thread stays visible while deletion finishes. If part of the deletion fails,
 its message explains that deletion is incomplete; choose **Delete** again to retry.
 A history shared with a retained thread is kept and prevents complete deletion.
-A thread awaiting deletion cannot accept new work. Settle and Archive preserve
+A thread cannot accept new work while deletion is in progress; after a failed
+attempt it works normally again until you retry. Settle and Archive preserve
 native conversation history.
 
 History deletion uses the provider's configured storage on the server machine.

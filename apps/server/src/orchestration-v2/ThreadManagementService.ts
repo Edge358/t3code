@@ -751,18 +751,9 @@ const make = Effect.gen(function* () {
   )(function* (command) {
     yield* ensureCommandTranscripts(command);
     yield* assertDispatchTargetEnabled(command);
-    const result = yield* orchestrator.dispatch(command);
-    if (command.type !== "thread.delete") return result;
-    const deletionEvents = result.storedEvents.filter(
-      (entry) =>
-        entry.event.type === "thread.metadata-updated" &&
-        entry.event.payload.historyDeletion !== undefined,
-    );
-    for (const entry of deletionEvents) {
-      if (entry.event.type !== "thread.metadata-updated") continue;
-      yield* orchestrator.awaitThreadDeletion(entry.event.threadId);
-    }
-    return result;
+    // Native history deletion runs as an outbox effect; clients follow it through the
+    // thread shell's historyDeletion instead of holding the request open.
+    return yield* orchestrator.dispatch(command);
   });
 
   const getProjectThreadRecords: ThreadManagementServiceShape["getProjectThreadRecords"] = (

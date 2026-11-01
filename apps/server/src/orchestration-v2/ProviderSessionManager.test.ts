@@ -337,6 +337,7 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
     readonly hasPendingBackgroundWorkForThread?: Effect.Effect<boolean>;
     readonly backgroundTasksEndWithProcess?: boolean;
     readonly hangSessionScopeClose?: boolean;
+    readonly failSessionScopeClose?: boolean;
     readonly startTurn?: Effect.Effect<void>;
     readonly interruptTurn?: Effect.Effect<void>;
     readonly beforeUnload?: Effect.Effect<void>;
@@ -365,6 +366,10 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
       ),
     ),
   );
+  // A finalizer that dies, like a provider process whose teardown throws.
+  const failClose = Effect.addFinalizer(() =>
+    Effect.die(new Error("synthetic provider scope close failure")),
+  );
   return ProviderAdapter.ProviderAdapterV2.of({
     instanceId: ProviderInstanceId.make("codex"),
     driver: CODEX_DRIVER,
@@ -375,6 +380,7 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
         if (options.spawnBeforeOpen === true) {
           yield* countClose;
           if (options.hangSessionScopeClose === true) yield* hangClose;
+          if (options.failSessionScopeClose === true) yield* failClose;
         }
         if (options.mcpConfigs !== undefined && options.spawnBeforeOpen === true) {
           const mcpConfig = yield* mcpSessions.read(input.threadId);
@@ -406,6 +412,7 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
         if (options.spawnBeforeOpen !== true) {
           yield* countClose;
           if (options.hangSessionScopeClose === true) yield* hangClose;
+          if (options.failSessionScopeClose === true) yield* failClose;
         }
 
         return {
@@ -492,6 +499,7 @@ function layerTest(input: {
   readonly hasPendingBackgroundWorkForThread?: Effect.Effect<boolean>;
   readonly backgroundTasksEndWithProcess?: boolean;
   readonly hangSessionScopeClose?: boolean;
+  readonly failSessionScopeClose?: boolean;
   readonly startTurn?: Effect.Effect<void>;
   readonly interruptTurn?: Effect.Effect<void>;
   readonly beforeUnload?: Effect.Effect<void>;
@@ -529,6 +537,9 @@ function layerTest(input: {
       ...(input.hangSessionScopeClose === undefined
         ? {}
         : { hangSessionScopeClose: input.hangSessionScopeClose }),
+      ...(input.failSessionScopeClose === undefined
+        ? {}
+        : { failSessionScopeClose: input.failSessionScopeClose }),
       ...(input.startTurn === undefined ? {} : { startTurn: input.startTurn }),
       ...(input.interruptTurn === undefined ? {} : { interruptTurn: input.interruptTurn }),
       ...(input.beforeUnload === undefined ? {} : { beforeUnload: input.beforeUnload }),
@@ -3882,4 +3893,40 @@ it.effect(
         ),
       );
     }),
+);
+
+it.effect("history deletion proceeds after a provider shutdown whose finalizer failed", () =>
+  Effect.gen(function* () {
+    const state = yield* Ref.make(emptyState);
+    yield* Effect.gen(function* () {
+      const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
+      const idAllocator = yield* IdAllocator.IdAllocatorV2;
+      const events = yield* EventSink.EventSinkV2;
+      const threadId = ThreadId.make("failed-close-history");
+      const now = yield* DateTime.now;
+      yield* events.write({
+        events: [yield* makeThreadCreatedEvent({ idAllocator, threadId, now })],
+      });
+      const providerSessionId = idAllocator.derive.providerSession({
+        providerInstanceId: modelSelection.instanceId,
+      });
+      yield* manager.open({ threadId, providerSessionId, modelSelection, runtimePolicy });
+      // Release reports the dead finalizer; the session is gone regardless.
+      const released = yield* Effect.exit(
+        manager.releaseUnlessBusy({
+          providerSessionId,
+          ownProviderThreadIds: [],
+          reason: "manual_shutdown",
+        }),
+      );
+      assert.equal(released._tag, "Failure");
+      assert.isFalse(yield* manager.isLive(providerSessionId));
+      yield* manager.awaitClosed(providerSessionId);
+      // The failed close leaves no stale entry to block the next deletion of this session.
+      yield* manager.awaitClosed(providerSessionId);
+      assert.equal((yield* Ref.get(state)).closeCount, 1);
+    }).pipe(
+      Effect.provide(layerTest({ state, idleTimeoutMs: 60 * 60_000, failSessionScopeClose: true })),
+    );
+  }),
 );

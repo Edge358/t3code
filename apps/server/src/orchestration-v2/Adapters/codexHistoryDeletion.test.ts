@@ -12,6 +12,8 @@ it.effect.each(["root", "archived-child", "none"] as const)(
         Effect.sync(() => {
           calls.push({ method, params });
           if (method === "thread/delete") return {};
+          // The ancestor-filter probe asks for one thread under an impossible id.
+          if (params.limit === 1) return { data: [], nextCursor: null };
           if (params.archived === false) return { data: [], nextCursor: null };
           return params.cursor === null
             ? { data: [{ id: "child" }], nextCursor: "page-2" }
@@ -29,9 +31,47 @@ it.effect.each(["root", "archived-child", "none"] as const)(
         protectedId === "none",
       );
       if (protectedId !== "root") {
-        assert.equal(calls.filter((call) => call.method === "thread/list").length, 3);
+        assert.equal(calls.filter((call) => call.method === "thread/list").length, 5);
         assert.include(calls[0]!.params.sourceKinds, "subAgentThreadSpawn");
       }
+    }),
+);
+
+it.effect.each(["neighbor", "grandchild"] as const)(
+  "falls back to parent links when the installed Codex ignores the ancestor filter (%s protected)",
+  (protectedId) =>
+    Effect.gen(function* () {
+      const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
+      const client = {
+        raw: {
+          request: (method: string, params: Record<string, unknown>) =>
+            Effect.sync(() => {
+              calls.push({ method, params });
+              if (method === "thread/delete") return {};
+              // The whole history comes back whatever the filter says.
+              return {
+                data: [
+                  { id: "root", parentThreadId: null },
+                  { id: "neighbor", parentThreadId: null },
+                  { id: "child", parentThreadId: "root" },
+                  { id: "grandchild", parentThreadId: "child" },
+                ],
+                nextCursor: null,
+              };
+            }),
+        },
+      } as Parameters<typeof deleteCodexHistory>[0];
+      const outcome = yield* deleteCodexHistory(client, "root", [protectedId]);
+      assert.equal(outcome, protectedId === "neighbor" ? "deleted" : "retained");
+      assert.equal(
+        calls.some((call) => call.method === "thread/delete"),
+        protectedId === "neighbor",
+      );
+      const listings = calls.filter((call) => call.method === "thread/list");
+      // Only the probes carry the ignored filter; the real listing is unfiltered.
+      assert.isTrue(
+        listings.every((call) => call.params.limit === 1 || !("ancestorThreadId" in call.params)),
+      );
     }),
 );
 

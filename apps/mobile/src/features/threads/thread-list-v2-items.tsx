@@ -1174,7 +1174,23 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         </View>
       ) : null}
       <View className="mt-1 flex-row items-center gap-2" style={{ paddingLeft: titleTextInset }}>
-        {(status === "failed" || status === "limited") && thread.runtime?.lastError ? (
+        {thread.historyDeletion ? (
+          <Text
+            className={cn(
+              "flex-1 text-xs",
+              selected
+                ? selectedThreadRowColors.mutedForegroundClassName
+                : thread.historyDeletion.status === "failed"
+                  ? "text-danger-foreground"
+                  : "text-drawer-foreground",
+            )}
+            numberOfLines={1}
+          >
+            {thread.historyDeletion.status === "failed"
+              ? "Deletion incomplete. Delete again to retry."
+              : "Deleting conversation history…"}
+          </Text>
+        ) : (status === "failed" || status === "limited") && thread.runtime?.lastError ? (
           <Text
             className={cn(
               "flex-1 text-xs",

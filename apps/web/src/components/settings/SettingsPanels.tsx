@@ -542,9 +542,6 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.confirmThreadArchive !== DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive
       ? ["Archive confirmation"]
       : []),
-    ...(settings.confirmThreadDelete !== DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete
-      ? ["Delete confirmation"]
-      : []),
     ...(settings.confirmQuit !== DEFAULT_UNIFIED_SETTINGS.confirmQuit ? ["Quit shortcut"] : []),
     ...(isTextGenerationModelDirty ? ["Text generation model"] : []),
     ...(settings.threadTitleInstructions !== DEFAULT_UNIFIED_SETTINGS.threadTitleInstructions
@@ -944,11 +941,6 @@ export function GeneralSettingsPanel() {
               aria-label="Confirm thread archiving"
             />
           }
-        />
-        <SettingsRow
-          {...searchableSetting("delete-confirmation")}
-          description="Confirmation is required because Delete also removes linked local Codex and Claude histories."
-          control={<Switch checked disabled aria-label="Confirm thread deletion" />}
         />
         {isElectron ? (
           <SettingsRow

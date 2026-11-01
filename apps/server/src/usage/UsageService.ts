@@ -949,7 +949,7 @@ export const make = Effect.gen(function* () {
         reason: "scanFailed",
         detail: "Usage could not be saved before deleting conversation history.",
       });
-  });
+  }).pipe(Effect.withSpan("UsageService.prepareDeletion"));
   return { readSummary, refreshRates, awaitPersisted, prepareDeletion } as const;
 });
 

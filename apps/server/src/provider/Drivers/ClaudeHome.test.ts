@@ -31,9 +31,10 @@ it.layer(NodeServices.layer)("ClaudeHome", (it) => {
           expect(env.DISABLE_TELEMETRY).toBe("1");
           expect(env.DISABLE_ERROR_REPORTING).toBe("1");
           expect(env.DISABLE_AUTOUPDATER).toBe("1");
-          expect(env.DO_NOT_TRACK).toBe("1");
           expect(env.CLAUDE_CODE_ENABLE_TELEMETRY).toBe("0");
-          expect(env.OTEL_SDK_DISABLED).toBe("true");
+          // Generic opt-outs would reach the agent's tool processes; leave them as inherited.
+          expect(env.OTEL_SDK_DISABLED).toBe(baseEnv.OTEL_SDK_DISABLED);
+          expect(env.DO_NOT_TRACK).toBeUndefined();
           expect(env.ANTHROPIC_API_KEY).toBe(baseEnv.ANTHROPIC_API_KEY);
           if (!homePath) expect(env.CLAUDE_CONFIG_DIR).toBe(baseEnv.CLAUDE_CONFIG_DIR);
         }

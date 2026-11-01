@@ -10,11 +10,14 @@ const target = "11111111-1111-4111-8111-111111111111";
 const neighbor = "22222222-2222-4222-8222-222222222222";
 const worker = NodeURL.fileURLToPath(new URL("./claude-history-worker.ts", import.meta.url));
 
-it.each(["complete", "orphaned-children", "shared-child"])(
+it.each(["complete", "orphaned-children", "shared-child", "junction-home"])(
   "deletes %s history and keeps its neighbor using the installed Claude SDK",
   async (scenario) => {
     const home = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "t3-claude-delete-"));
+    // A redirected Windows profile reaches the Claude home through a junction.
+    const configDir = scenario === "junction-home" ? `${home}-link` : home;
     try {
+      if (configDir !== home) await NodeFSP.symlink(home, configDir, "junction");
       const project = NodePath.join(home, "projects", "disposable-project");
       const child = NodePath.join(project, target, "subagents");
       await NodeFSP.mkdir(child, { recursive: true });
@@ -34,7 +37,7 @@ it.each(["complete", "orphaned-children", "shared-child"])(
           process.execPath,
           [worker, "deleteSession", target, JSON.stringify({ protectedNativeIds })],
           {
-            env: { ...process.env, CLAUDE_CONFIG_DIR: home },
+            env: { ...process.env, CLAUDE_CONFIG_DIR: configDir },
             encoding: "utf8",
           },
         );
@@ -63,6 +66,7 @@ it.each(["complete", "orphaned-children", "shared-child"])(
       expect(retry.status, retry.stderr).toBe(0);
       expect(JSON.parse(retry.stdout)).toBe("absent");
     } finally {
+      if (configDir !== home) await NodeFSP.unlink(configDir).catch(() => NodeFSP.rmdir(configDir));
       await NodeFSP.rm(home, { recursive: true, force: true });
     }
   },

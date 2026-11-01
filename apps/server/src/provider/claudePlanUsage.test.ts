@@ -74,6 +74,36 @@ it.layer(NodeServices.layer)("private Claude plan usage", (it) => {
       ).toBe(path.resolve(explicitDir));
     }),
   );
+  it.effect("explains the Keychain limitation on macOS instead of asking for a login", () =>
+    Effect.gen(function* () {
+      const dir = yield* login("keychain-ignored");
+      const result = yield* readClaudePlanUsage(dir, "2.1.316").pipe(
+        Effect.provideService(HostProcess.Platform, "darwin"),
+        Effect.provideService(
+          HttpClient.HttpClient,
+          HttpClient.make(() => Effect.die("macOS must not send the request")),
+        ),
+      );
+      expect(result).toEqual({ message: expect.stringContaining("Keychain") });
+    }),
+  );
+  it.effect("skips the request when the saved login has expired", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const dir = yield* fs.makeTempDirectoryScoped();
+      yield* fs.writeFileString(
+        path.join(dir, ".credentials.json"),
+        JSON.stringify({ claudeAiOauth: { accessToken: "stale-token", expiresAt: 1 } }),
+      );
+      yield* TestClock.adjust("1 second");
+      const result = yield* read(
+        dir,
+        HttpClient.make(() => Effect.die("an expired login must not reach the provider")),
+      );
+      expect(result).toEqual({ message: expect.stringContaining("expired") });
+    }),
+  );
   it.effect("reports connection failure without exposing credentials or raw errors", () =>
     Effect.gen(function* () {
       const dir = yield* login("secret-test-token");

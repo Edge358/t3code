@@ -51,13 +51,14 @@ export const layer = Layer.effect(
           "providerSessions",
           "runs",
         ]);
-        let state = projection.thread.historyDeletion;
+        const initial = projection.thread.historyDeletion;
         if (
-          state === undefined ||
-          state.requestId !== effect.commandId ||
-          state.status === "complete"
+          initial === undefined ||
+          initial.requestId !== effect.commandId ||
+          initial.status === "complete"
         )
           return;
+        let current = initial;
         let update = 0;
         const save = Effect.fn("HistoryDeletionService.save")(function* (
           next: ThreadHistoryDeletion,
@@ -70,7 +71,7 @@ export const layer = Layer.effect(
             ),
             state: next,
           });
-          state = next;
+          current = next;
         });
         yield* Effect.gen(function* () {
           const deletionThreadIds =
@@ -121,7 +122,7 @@ export const layer = Layer.effect(
             "providerSessions",
             "runs",
           ]);
-          const targets = [...state!.targets];
+          const targets = [...current.targets];
           // A turn finishing during shutdown may have supplied its native ID after the initial request.
           for (const native of records.providerThreads) {
             if (native.appThreadId !== effect.threadId && native.appThreadId !== null) continue;
@@ -143,9 +144,9 @@ export const layer = Layer.effect(
                 nativeId: native.nativeThreadRef?.nativeId ?? null,
               };
           }
-          yield* save({ ...state!, targets });
-          for (let index = 0; index < state!.targets.length; index++) {
-            const target = state!.targets[index]!;
+          yield* save({ ...current, targets });
+          for (let index = 0; index < current.targets.length; index++) {
+            const target = current.targets[index]!;
             if (["deleted", "absent", "unsupported"].includes(target.status)) continue;
             const native = records.providerThreads.find(
               (thread) => thread.id === target.providerThreadId,
@@ -236,19 +237,19 @@ export const layer = Layer.effect(
               });
             const status = result._tag === "Success" ? result.success : "failed";
             yield* save({
-              ...state!,
-              targets: state!.targets.map((entry, position) =>
+              ...current,
+              targets: current.targets.map((entry, position) =>
                 position === index ? { ...entry, status } : entry,
               ),
             });
           }
-          const remaining = state!.targets.filter(
+          const remaining = current.targets.filter(
             (target) =>
               target.status === "failed" ||
               target.status === "retained" ||
               target.status === "pending",
           );
-          const summary = state!.targets
+          const summary = current.targets
             .map(
               (target) =>
                 `${target.driver === "claudeAgent" ? "Claude" : target.driver}: ${target.status}`,
@@ -258,7 +259,7 @@ export const layer = Layer.effect(
             ? " Shared histories are kept."
             : "";
           yield* save({
-            ...state!,
+            ...current,
             status: remaining.length > 0 ? "failed" : "complete",
             message:
               remaining.length > 0
@@ -268,7 +269,7 @@ export const layer = Layer.effect(
         }).pipe(
           Effect.catch((cause) =>
             save({
-              ...state!,
+              ...current,
               status: "failed",
               message:
                 "Conversation deletion could not finish stopping provider work or saving usage. Stop any other active conversations and use Delete again to retry. Project files were kept.",

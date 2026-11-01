@@ -62,8 +62,6 @@ export function startThreadNotifications(
 ): () => void {
   const pending = new Map<string, { environmentId: EnvironmentId; notification: Notification }>();
   const watched = new Map<EnvironmentId, WatchedEnvironment>();
-  let speechEnabledAt = Number.POSITIVE_INFINITY;
-  let speechWasEnabled = false;
 
   const trackNotification = (environmentId: EnvironmentId, notification: Notification) => {
     pending.get(notification.tag)?.notification.close();
@@ -83,15 +81,16 @@ export function startThreadNotifications(
     kind: ThreadNotificationKind,
   ) => {
     const { thread, status } = state;
-    if (
-      kind === "completion" &&
-      state.completedAt !== null &&
-      state.completedAt >= speechEnabledAt
-    ) {
+    const active = (router.state.matches.at(-1)?.params ?? {}) as {
+      environmentId?: string;
+      threadId?: string;
+    };
+    if (kind === "completion") {
       void speakCompletedReply(
         registry,
         environmentId,
         state.raw,
+        active.environmentId === environmentId && active.threadId === thread.id,
         () =>
           watched.get(environmentId)?.previous.get(thread.id)?.raw.latestRunId ===
           state.raw.latestRunId,
@@ -105,10 +104,6 @@ export function startThreadNotifications(
       });
     }
     const { notificationMode: mode, inAppNotificationsEnabled } = getClientSettings();
-    const active = (router.state.matches.at(-1)?.params ?? {}) as {
-      environmentId?: string;
-      threadId?: string;
-    };
     const title =
       kind === "completion"
         ? "Thread completed"
@@ -370,11 +365,6 @@ export function startThreadNotifications(
   };
 
   const onSettings = () => {
-    const speechEnabled = getClientSettings().readRepliesAloud;
-    if (speechEnabled !== speechWasEnabled) {
-      speechEnabledAt = speechEnabled ? Date.now() : Number.POSITIVE_INFINITY;
-      speechWasEnabled = speechEnabled;
-    }
     applyMode();
     syncEnvironments();
   };

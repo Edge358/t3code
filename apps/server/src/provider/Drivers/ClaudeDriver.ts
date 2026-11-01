@@ -60,9 +60,10 @@ import {
 import {
   makeClaudeCapabilitiesCacheKey,
   makeClaudeContinuationGroupKey,
-  resolveClaudeHomePath,
+  withClaudePrivacyEnvironment,
 } from "./ClaudeHome.ts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
 const decodeClaudeSettings = Schema.decodeSync(ClaudeSettings);
 
 const DRIVER_KIND = ProviderDriverKind.make("claudeAgent");
@@ -149,7 +150,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
     const resolveMaintenance = yield* makeCachedProviderMaintenanceResolution(
       resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
         binaryPath: effectiveConfig.binaryPath,
-        env: processEnv,
+        env: withClaudePrivacyEnvironment(processEnv),
       }).pipe(
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
         Effect.provideService(FileSystem.FileSystem, fileSystem),
@@ -157,14 +158,9 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       ),
     );
     const continuationGroupKey = yield* makeClaudeContinuationGroupKey(effectiveConfig, processEnv);
-    const configDir = yield* resolveClaudeHomePath(effectiveConfig, processEnv);
-    // The capability probe runs in stateDir; inherited relative paths must use
-    // that same cwd when selecting credentials for its usage fallback.
-    const planUsageConfigDir = yield* resolveClaudeConfigDirPath(
-      effectiveConfig,
-      processEnv,
-      stateDir,
-    );
+    // Probes run in stateDir; an inherited relative CLAUDE_CONFIG_DIR must resolve against
+    // that same cwd for every credential read, so one resolution serves them all.
+    const configDir = yield* resolveClaudeConfigDirPath(effectiveConfig, processEnv, stateDir);
     const accountConfigPath = yield* ClaudeResetCredits.claudeAccountConfigPath(
       effectiveConfig.homePath.trim() || processEnv.CLAUDE_CONFIG_DIR?.trim()
         ? configDir
@@ -247,10 +243,11 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       {
         capacity: 1,
         timeToLive: (exit) =>
-          // Only fresh usage earns the TTL; failures, fallbacks and usage-less probes retry.
+          // Fresh probes earn the TTL; failures and fallbacks retry. With optional CLI traffic
+          // disabled, SDK usage is absent by design, so its absence does not deny the TTL.
           Exit.isSuccess(exit) &&
           exit.value._tag === "fresh" &&
-          exit.value.capabilities.usage !== undefined
+          (exit.value.capabilities.usage !== undefined || !privateBuildPolicy.reporting)
             ? CAPABILITIES_PROBE_TTL
             : Duration.zero,
       },
@@ -282,7 +279,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
                   Effect.provideService(Path.Path, path),
                 ),
               (version) =>
-                readClaudePlanUsage(planUsageConfigDir, version).pipe(
+                readClaudePlanUsage(configDir, version).pipe(
                   Effect.provideService(HttpClient.HttpClient, httpClient),
                   Effect.provideService(FileSystem.FileSystem, fileSystem),
                   Effect.provideService(Path.Path, path),
