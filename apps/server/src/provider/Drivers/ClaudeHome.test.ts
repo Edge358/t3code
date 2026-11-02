@@ -3,17 +3,106 @@ import * as NodeOS from "node:os";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 
 import {
   makeClaudeCapabilitiesCacheKey,
   makeClaudeContinuationGroupKey,
   makeClaudeEnvironment,
+  mergeClaudeProcessEnvironment,
   resolveClaudeHomePath,
 } from "./ClaudeHome.ts";
+import { readClaudeSettingsEnv } from "./ClaudeSkills.ts";
 
 it.layer(NodeServices.layer)("ClaudeHome", (it) => {
   describe("Claude home resolution", () => {
+    it.effect(
+      "isolates Claude identity and honors instance and settings overrides without losing privacy",
+      () =>
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const homePath = yield* fs.makeTempDirectoryScoped({ prefix: "t3-claude-identity-" });
+          const host = {
+            CLAUDE_CODE_ENTRYPOINT: "claude-desktop",
+            CLAUDECODE: "1",
+            CLAUDE_CODE_SESSION_ID: "host-session",
+            CLAUDE_CODE_HOST_SESSION_ID: "host-parent",
+            CLAUDE_CODE_CHILD_SESSION: "1",
+            CLAUDE_CODE_SESSION_ATTENDED: "1",
+            CLAUDE_CODE_MESSAGING_SOCKET: "host-socket",
+            CLAUDE_CODE_MESSAGING_TOKEN: "synthetic-host-token",
+            CLAUDE_CODE_EXECPATH: "host-executable",
+            CLAUDE_CODE_DESKTOP_APP_VERSION: "host-version",
+            CLAUDE_EFFORT: "high",
+            CLAUDE_PID: "123",
+            CLAUDE_AGENT_SDK_VERSION: "host-sdk",
+            CLAUDE_CODE_SHELL: "user-shell",
+            CLAUDE_ENV_FILE: "user-env-file",
+            ANTHROPIC_API_KEY: "synthetic-test-key",
+            ANTHROPIC_BASE_URL: "http://127.0.0.1:1",
+            DISABLE_TELEMETRY: "0",
+          };
+          const originalHost = { ...host };
+          const kept = {
+            CLAUDE_CODE_ENTRYPOINT: "t3-code",
+            CLAUDE_CODE_SHELL: host.CLAUDE_CODE_SHELL,
+            CLAUDE_ENV_FILE: host.CLAUDE_ENV_FILE,
+            ANTHROPIC_API_KEY: host.ANTHROPIC_API_KEY,
+            ANTHROPIC_BASE_URL: host.ANTHROPIC_BASE_URL,
+            DISABLE_TELEMETRY: "0",
+          };
+          expect(yield* mergeClaudeProcessEnvironment({ homePath }, undefined, {})).toEqual({
+            CLAUDE_CODE_ENTRYPOINT: "t3-code",
+          });
+          expect(yield* mergeClaudeProcessEnvironment({ homePath }, undefined, host)).toEqual(kept);
+          for (const instanceValue of ["instance", ""]) {
+            const instance = [
+              { name: "CLAUDE_CODE_ENTRYPOINT", value: instanceValue, sensitive: false },
+              { name: "CLAUDE_EFFORT", value: "low", sensitive: false },
+              { name: "DISABLE_TELEMETRY", value: "0", sensitive: false },
+            ];
+            for (const settingsValue of [undefined, "settings", ""]) {
+              yield* fs.writeFileString(
+                path.join(homePath, "settings.json"),
+                JSON.stringify({ env: { CLAUDE_CODE_ENTRYPOINT: settingsValue } }),
+              );
+              const merged = yield* mergeClaudeProcessEnvironment({ homePath }, instance, host);
+              expect(merged).toEqual({
+                ...kept,
+                CLAUDE_CODE_ENTRYPOINT: settingsValue || instanceValue,
+                CLAUDE_EFFORT: "low",
+              });
+              const launch = yield* makeClaudeEnvironment({ homePath }, merged);
+              expect(launch.CLAUDE_CODE_ENTRYPOINT).toBe(settingsValue || instanceValue);
+              expect(launch.DISABLE_TELEMETRY).toBe("1");
+              expect(launch.DISABLE_ERROR_REPORTING).toBe("1");
+              expect(launch.DISABLE_AUTOUPDATER).toBe("1");
+              expect(launch.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe("1");
+              expect(launch.CLAUDE_CODE_ENABLE_TELEMETRY).toBe("0");
+              expect(launch.CLAUDE_CONFIG_DIR).toBe(homePath);
+            }
+          }
+          yield* fs.writeFileString(
+            path.join(homePath, "settings.json"),
+            '{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:2","CLAUDE_CODE_ENTRYPOINT":"configured"}}',
+          );
+          expect(yield* readClaudeSettingsEnv({ homePath }, undefined, host)).toEqual({
+            ANTHROPIC_BASE_URL: "http://127.0.0.1:2",
+            CLAUDE_CODE_ENTRYPOINT: "configured",
+          });
+          expect(
+            (yield* mergeClaudeProcessEnvironment({ homePath: "" }, undefined, {
+              ...host,
+              CLAUDE_CONFIG_DIR: homePath,
+            })).CLAUDE_CODE_ENTRYPOINT,
+          ).toBe("configured");
+          yield* fs.writeFileString(path.join(homePath, "settings.json"), "invalid JSON");
+          expect(yield* mergeClaudeProcessEnvironment({ homePath }, undefined, host)).toEqual(kept);
+          expect(host).toEqual(originalHost);
+        }),
+    );
     it.effect("forces optional traffic off while preserving provider credentials and home", () =>
       Effect.gen(function* () {
         const baseEnv = {

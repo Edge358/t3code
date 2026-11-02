@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import { createChildThreadApprovalsAtom } from "@t3tools/client-runtime/state/thread-requests";
 import {
   createEnvironmentThreadDetailAtoms,
   createEnvironmentThreadShellAtoms,
@@ -43,6 +44,10 @@ export const environmentThreadDetails = createEnvironmentThreadDetailAtoms(
 export const environmentThreadShells = createEnvironmentThreadShellAtoms({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
   snapshotAtom: threadEnvironment.snapshotAtom,
+});
+export const childThreadApprovalsAtom = createChildThreadApprovalsAtom({
+  childThreadInputsAtom: environmentThreadShells.childThreadInputsAtom,
+  pendingRequestsAtom: environmentThreadDetails.pendingRequestsAtom,
 });
 
 /** Keeps the subagent tree under `rootThreadId` in the thread list while the caller shows it. */

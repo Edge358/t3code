@@ -155,6 +155,7 @@ import { signalProcessGroup } from "@t3tools/provider-core/server/processGroup";
 import {
   claudeSignedOutMessage,
   makeClaudeEnvironment,
+  mergeClaudeProcessEnvironment,
   withClaudePrivacyEnvironment,
   resolveClaudeHomePath,
 } from "../../provider/Drivers/ClaudeHome.ts";
@@ -176,7 +177,6 @@ import {
   type ClaudeScopedLimitNames,
 } from "../../provider/claudeUsageLimits.ts";
 import type { ManagedServerProvider } from "@t3tools/provider-core/server/snapshot";
-import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 import {
   T3_CODE_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH,
   T3_CODE_ORCHESTRATION_INSTRUCTIONS,
@@ -9788,6 +9788,27 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             } satisfies PermissionResult;
           }
 
+          const activePermissionMode =
+            (yield* Ref.get(queryContext))?.permissionMode ?? context.queryPolicy.permissionMode;
+          const safetyReason = NodeUtil.stripVTControlCharacters(
+            callbackOptions.decisionReason ?? "",
+          ).trim();
+          // The SDK omits the CLI's dangerousRemoval discriminator, so match its removal warnings.
+          if (
+            toolName === "Bash" &&
+            activePermissionMode === "bypassPermissions" &&
+            callbackOptions.matchedAskRule === undefined &&
+            (/^Dangerous rm(?:dir)?\b/i.test(safetyReason) ||
+              safetyReason === "This shell -c script runs rm and could not be checked" ||
+              safetyReason === "A permission rule denies a command in this shell -c script")
+          ) {
+            return {
+              behavior: "deny",
+              message: `Claude Code's removal safety check denied this command; the user did not reject it. The command did not run. Do not bypass the check by splitting the removal, putting it in a script, or using another tool or shell. If the warning below supplies a safe rewrite, use it and let the same check evaluate it. Otherwise continue the rest of the task without the removal and tell the user what you needed to delete and why. Warning: ${safetyReason}`,
+              toolUseID: callbackOptions.toolUseID,
+            } satisfies PermissionResult;
+          }
+
           const requestKind = providerRequestKindFromClaudeTool(toolName);
           // The user approves the command itself; Claude's title and description only summarize it.
           const command = inputRecordValue(nativeToolInput, "command");
@@ -10763,7 +10784,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               next.add(turnInput.providerTurnId);
               return next;
             });
-            yield* existing.query.interrupt;
+            yield* existing.query.interrupt.pipe(Effect.timeoutOption("10 seconds"));
             yield* existing.query.close.pipe(Effect.ignore);
             const closed = yield* Deferred.await(existing.closed).pipe(
               Effect.timeoutOption(CLAUDE_STOP_CONFIRM_TIMEOUT_MS),
@@ -11563,7 +11584,11 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
     const queryRunner = yield* ClaudeAgentSdkQueryRunner;
     const serverConfig = yield* ServerConfig.ServerConfig;
     const continuationRequests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
-    const baseEnvironment = yield* mergeProviderInstanceEnvironment(environment, hostEnvironment);
+    const baseEnvironment = yield* mergeClaudeProcessEnvironment(
+      config,
+      environment,
+      hostEnvironment,
+    );
     const claudeEnvironment = yield* makeClaudeEnvironment(config, baseEnvironment);
     const path = yield* Path.Path;
     const crypto = yield* Crypto.Crypto;

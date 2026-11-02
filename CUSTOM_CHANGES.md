@@ -101,6 +101,26 @@ The final packaged check measured actual reply/input text at 22px, actual menu
 labels at 18px, Interface at 24px, hint opacity 0.5, and typed-text opacity 1.
 This is not a claim that every display/DPI combination has been tested.
 
+The sidebar Search placeholder uses half the input font size and 40% opacity.
+Typed search text and the search icon keep their normal appearance.
+
+Sidebar folder rows size their offscreen placeholders with the interface scale,
+so large fonts do not leave fixed-height gaps when groups expand. Panel maximize
+controls disappear immediately on close instead of fading beside their replacement.
+
+The thread-details card starts closed. Collapsing or reopening the left sidebar
+does not open it. Its titlebar toggle remains available, and an explicitly opened
+inline card is remembered per thread across restarts. Popovers are not restored.
+
+Model and effort changes appear above the message where the change took effect,
+including queued messages promoted to Steer. Web, desktop and mobile share the
+change calculation. Existing provider-handoff rows remain separate, and old
+messages without recorded switches do not gain guessed history markers.
+
+Terminal updates affect only the relevant thread. Process labels retain spaces;
+non-web URLs are not mistaken for editor paths. Terminal context handles inverted
+line ranges, and output styling and resume processing avoid repeated parsing.
+
 ## 2. Projects and new conversations
 
 Here, a project is T3's record for a working folder. It does not have to be a Git
@@ -287,6 +307,14 @@ icons, app auto-updates, automatic pricing downloads, periodic provider checks,
 and the GitHub-star prompt. Claude child processes receive optional-traffic
 opt-outs. Remote conversation images require consent by default.
 
+Claude launches identify as `t3-code` by default, replacing an inherited host
+entrypoint. Explicit provider-instance environment settings override that default;
+a nonempty entrypoint in Claude's user or managed settings takes precedence.
+Inherited Claude session identifiers and messaging credentials are removed before
+instance overrides are applied. The parent environment and ordinary terminal
+launches are unchanged, and the private optional-traffic restrictions still apply.
+This corrects request identification; it does not establish allowance savings.
+
 Initial provider discovery was restored after disabling it left model/status
 information unchecked. It can contact providers and remains separate from
 periodic checks, optional telemetry, and model-manifest update settings. This
@@ -295,6 +323,24 @@ are governed by the app. Model use still requires provider connections.
 
 The star-request popup is suppressed as a personal preference. The change does
 not remove upstream credit or claim authorship of T3 Code.
+
+### Provider reliability
+
+Claude Stop waits up to ten seconds for the SDK acknowledgement before closing
+the query through the existing shutdown path. Stop and Force stop can also settle
+a run left running after its provider turn ended, preserving an already completed
+attempt. Promoting a queued message to Steer retains its chosen model; queued
+helper completions follow the conversation's newer model selection.
+
+Helper approvals appear in the parent conversation with separate approve/decline
+controls, the correct destination environment, and retry feedback. Claude's
+dangerous-removal warnings in bypass mode deny the command rather than opening an
+approval; explicit ask rules and restricted modes still request approval. See
+[permission modes](docs/user/permission-modes.md). Saved sensitive provider variables
+require a replacement value before they can be renamed or made plain text.
+
+Log rotation prunes only canonical numbered rotations. Files with similar names,
+such as `debug.log.04` or `debug.log.notes`, remain intact.
 
 ## 6. Verification approach
 
@@ -309,9 +355,10 @@ Validate future changes with checks appropriate to the affected behavior:
 - For runtime changes, a Windows x64 package and a launch/health check of the
   artifact being accepted. Documentation-only corrections do not require rebuilding.
 
-`vp run check:changed` runs upstream source checks, not packaging or runtime acceptance. It
-spawns a global `vp` binary that is not installed on the development machine; run
-the component checks by hand or install `vp` per the README.
+`pnpm exec vp run check:changed` runs upstream source checks, not packaging or
+runtime acceptance. On Windows, its child checks use the installed Vite+ JavaScript
+entry through Node, so a global `vp` shim is not required. Focused component checks
+remain available when the aggregate check reports unrelated existing findings.
 
 Two desktop settings tests create symlink fixtures and skip when Windows cannot
 create links without Developer Mode. They use the repository's existing
@@ -349,6 +396,13 @@ Delete requires confirmation and recursively includes child conversations, inclu
 provider helper agents, side chats, and forks. Provider shutdown precedes cleanup.
 The conversation remains visible with deletion progress; failed cleanup can be
 retried with Delete. New agent work is blocked after a partial deletion.
+
+Deletion failures now explain shared-provider activity, newly discovered helpers,
+unfinished conversation work, or the cleanup step that failed. The banner and
+sidebar hover card give retry guidance without exposing raw error details.
+Successful local Delete actions also clear saved right-panel, diff-panel, and
+mini-player state for that thread. This does not broaden client-state cleanup to
+agent-initiated or other-client deletion paths.
 
 Cleanup removes recorded local Codex/Claude histories, empty Claude session-env
 folders, T3 provider logs and rotations, attachments, thread-bound scheduled tasks,

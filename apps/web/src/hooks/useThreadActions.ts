@@ -45,6 +45,9 @@ import {
 } from "../state/entities";
 import { useUiStateStore } from "../uiStateStore";
 import { clearThreadPreviewState } from "../previewStateStore";
+import { useDiffPanelStore } from "../diffPanelStore";
+import { usePreviewMiniPlayerStore } from "../previewMiniPlayerStore";
+import { useRightPanelStore } from "../rightPanelStore";
 import { useTerminalUiStateStore } from "../terminalUiStateStore";
 import { buildThreadRouteParams, resolveThreadRouteRef } from "../threadRoutes";
 import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "../worktreeCleanup";
@@ -239,6 +242,13 @@ export function useAcknowledgeThreadWoke() {
 
 // These Undos restore a thread's place in the list, which archiving or deleting it ends.
 const LIST_PLACEMENT_UNDO_KINDS = ["settle", "snooze", "pin"];
+
+function clearDeletedThreadPanelState(ref: ScopedThreadRef) {
+  clearThreadPreviewState(ref);
+  useRightPanelStore.getState().removeThread(ref);
+  useDiffPanelStore.getState().removeThread(ref);
+  usePreviewMiniPlayerStore.getState().removeThread(ref);
+}
 
 function expireThreadUndos(target: ScopedThreadRef, kinds: readonly string[]) {
   for (const kind of kinds) ThreadUndo.invalidate(kind, scopedThreadKey(target));
@@ -454,7 +464,7 @@ export function useThreadActions() {
       if (result._tag === "Success") {
         expireThreadUndos(target, [...LIST_PLACEMENT_UNDO_KINDS, "archive"]);
         refreshArchivedThreadsForEnvironment(target.environmentId);
-        clearThreadPreviewState(target);
+        clearDeletedThreadPanelState(target);
         await returnHomeAfterDeletion(target);
       }
       return result;
@@ -568,7 +578,7 @@ export function useThreadActions() {
       threadRef,
     );
     clearTerminalUiState(threadRef);
-    clearThreadPreviewState(threadRef);
+    clearDeletedThreadPanelState(threadRef);
 
     await returnHomeAfterDeletion(threadRef);
 

@@ -22,8 +22,13 @@ import type { OrchestrationEffectV2 } from "./EffectOutbox.ts";
 
 export class HistoryDeletionError extends Schema.TaggedError<HistoryDeletionError>()(
   "HistoryDeletionError",
-  { cause: Schema.Defect() },
+  {
+    cause: Schema.Defect(),
+    reason: Schema.optional(Schema.Literals(["provider-busy", "new-descendant", "work-unsettled"])),
+  },
 ) {}
+
+const isHistoryDeletionError = Schema.is(HistoryDeletionError);
 
 export class HistoryDeletionService extends Context.Service<
   HistoryDeletionService,
@@ -63,6 +68,7 @@ export const layer = Layer.effect(
         )
           return;
         let current = initial;
+        let cleanupStage = "preparing conversation cleanup";
         let update = 0;
         const save = Effect.fn("HistoryDeletionService.save")(function* (
           next: ThreadHistoryDeletion,
@@ -97,6 +103,7 @@ export const layer = Layer.effect(
               ),
             ),
           ]);
+          cleanupStage = "stopping the provider";
           for (const providerSessionId of providerSessionIds) {
             const otherWorking = yield* sessions.otherWorkingThreads({
               providerSessionId,
@@ -105,6 +112,7 @@ export const layer = Layer.effect(
             if (otherWorking.some((id) => !deletionThreadIds.includes(id)))
               return yield* new HistoryDeletionError({
                 cause: "Another conversation still has active provider work.",
+                reason: "provider-busy",
               });
             const released = yield* sessions.releaseUnlessBusy({
               providerSessionId,
@@ -116,6 +124,7 @@ export const layer = Layer.effect(
               return yield* new HistoryDeletionError({
                 cause:
                   "Another conversation is using the provider process. Stop its active work and retry Delete.",
+                reason: "provider-busy",
               });
             yield* sessions.awaitClosed(providerSessionId);
           }
@@ -125,8 +134,11 @@ export const layer = Layer.effect(
           if (descendantsAfterShutdown.some((id) => !deletionThreadIds.includes(id)))
             return yield* new HistoryDeletionError({
               cause: "A descendant appeared during shutdown. Retry Delete to include it.",
+              reason: "new-descendant",
             });
+          cleanupStage = "preserving usage totals";
           yield* usage.prepareDeletion;
+          cleanupStage = "finding provider histories";
           const project = yield* projects.get(projection.thread.projectId);
           const records = yield* projections.getThreadRecords(effect.threadId, [
             "providerThreads",
@@ -275,7 +287,9 @@ export const layer = Layer.effect(
             if (unsettled.length > 0)
               return yield* new HistoryDeletionError({
                 cause: "Conversation work has not settled.",
+                reason: "work-unsettled",
               });
+            cleanupStage = "checking shared attachments";
             const attachmentIds = yield* projections.getThreadAttachmentIds(effect.threadId);
             const protectedAttachments = new Set<string>();
             for (const attachmentId of attachmentIds) {
@@ -303,6 +317,14 @@ export const layer = Layer.effect(
             ] as const;
             for (const [step, operation] of steps) {
               if (current.completedCleanup?.includes(step)) continue;
+              cleanupStage = {
+                "scheduled-tasks": "removing scheduled tasks",
+                terminal: "closing terminals",
+                preview: "closing previews",
+                attachments: "removing attachments",
+                checkpoints: "removing conversation checkpoints",
+                logs: "removing conversation logs",
+              }[step];
               yield* operation;
               yield* save({
                 ...current,
@@ -310,6 +332,7 @@ export const layer = Layer.effect(
               });
             }
           }
+          cleanupStage = "saving cleanup progress";
           yield* save({
             ...current,
             status: remaining.length > 0 ? "failed" : "complete",
@@ -319,18 +342,26 @@ export const layer = Layer.effect(
                 : `Local conversation deletion finished. ${summary}. Unsupported provider histories are kept.`,
           });
         }).pipe(
-          Effect.catch((cause) =>
-            save({
+          Effect.catch((cause) => {
+            const reason = isHistoryDeletionError(cause) ? cause.reason : undefined;
+            const guidance =
+              reason === "provider-busy"
+                ? "Another conversation is still using this provider. Wait for its work to finish or stop it, then use Delete again."
+                : reason === "new-descendant"
+                  ? "A new helper conversation appeared during cleanup. Use Delete again to include it."
+                  : reason === "work-unsettled"
+                    ? "Conversation work is still finishing. Wait for it to finish, then use Delete again."
+                    : `Could not finish ${cleanupStage}. Use Delete again to retry this step.`;
+            return save({
               ...current,
               status: "failed",
-              message:
-                "Conversation cleanup could not finish. Project files were kept. Use Delete again to retry the unfinished cleanup.",
+              message: `${guidance} Project files were kept.`,
             }).pipe(
               Effect.tap(() =>
                 Effect.logWarning("Conversation history deletion preparation failed", { cause }),
               ),
-            ),
-          ),
+            );
+          }),
         );
       },
       Effect.mapError((cause) => new HistoryDeletionError({ cause })),

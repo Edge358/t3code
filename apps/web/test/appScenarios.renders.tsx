@@ -14,9 +14,11 @@ import "~/index.css";
 import { AppRoot } from "~/AppRoot";
 import { __setClientSettingsForTests } from "~/hooks/useSettings";
 import { getRouter, type AppRouter } from "~/router";
+import { useRightPanelStore } from "~/rightPanelStore";
 import {
   ENVIRONMENT_ID,
   assistantItem,
+  emitTerminalMetadata,
   emitThreadEvent,
   installFakeEnvironment,
   isThreadSubscribed,
@@ -50,6 +52,7 @@ vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
 const HISTORY_TURNS = 20;
 const STREAM_DELTAS = 30;
 const TYPED_TEXT = "fix the flaky tests!";
+const TERMINAL_UPDATES = 20;
 // The stream scenario leaves a turn on its thread, so it streams into one no other scenario opens.
 const THREADS = ["thread-warm", "thread-a", "thread-b", "thread-live"].map((name) =>
   threadWithHistory(name, HISTORY_TURNS),
@@ -93,17 +96,17 @@ const lastAnswer = (threadId: ThreadId) =>
   page.getByText(`Answer ${HISTORY_TURNS - 1} for ${threadId}.`);
 
 // The app owns its router, as main.tsx does, so render() adds none.
-async function mountApp(path: string) {
+async function mountApp(path: string, width = 1400) {
   const router = getRouter(createMemoryHistory({ initialEntries: [path] }));
   await router.load();
   const container = document.createElement("div");
-  container.style.cssText = "height: 900px; width: 1400px;";
+  container.style.cssText = `height: 900px; width: ${width}px;`;
   const screen = await render(<AppRoot router={router} />, { container, router: false });
   return { screen, router };
 }
 
-async function openThread(threadId: ThreadId) {
-  const app = await mountApp(threadPath(threadId));
+async function openThread(threadId: ThreadId, width = 1400) {
+  const app = await mountApp(threadPath(threadId), width);
   await expect.element(lastAnswer(threadId)).toBeVisible();
   await quiet();
   return app;
@@ -211,6 +214,37 @@ it("app-stream-assistant-turn", async () => {
   await report("app-stream-assistant-turn", [counted], { commits: false });
 });
 
+it("app-terminal-updates-in-other-thread", async () => {
+  using _clock = frozenClock();
+  await using _app = (await openThread(A)).screen;
+  const counted = await measure(async () => {
+    for (let update = 0; update < TERMINAL_UPDATES; update++) {
+      await act(() =>
+        emitTerminalMetadata({
+          type: "upsert",
+          terminal: {
+            threadId: B,
+            terminalId: "default",
+            cwd: "/repo",
+            worktreePath: null,
+            status: "running",
+            pid: 42,
+            exitCode: null,
+            exitSignal: null,
+            hasRunningSubprocess: true,
+            label: `command ${update}`,
+            updatedAt: `2026-03-18T09:01:${String(update).padStart(2, "0")}.000Z`,
+          },
+        }),
+      );
+    }
+  });
+  // Only thread B's sidebar row shows these updates.
+  expect(counted.components.ChatView).toBeUndefined();
+  expect(counted.components.SidebarThreadRow).toBe(TERMINAL_UPDATES);
+  await report("app-terminal-updates-in-other-thread", [counted]);
+});
+
 it("app-type-in-composer", async () => {
   using _clock = frozenClock();
   await using _app = (await openThread(A)).screen;
@@ -246,6 +280,34 @@ const toggleDiff = (to: "open" | "close") => async () => {
   if (to === "open") await expect.element(diff).toBeVisible();
   else await expect.element(diff).not.toBeInTheDocument();
 };
+
+it("keeps new thread details closed when the main sidebar collapses and reopens", async () => {
+  using _clock = frozenClock();
+  useRightPanelStore.getState().removeThread({ environmentId: ENVIRONMENT_ID, threadId: A });
+  await using _app = (await openThread(A, 1200)).screen;
+  const toggle = page.getByRole("button", { name: "Toggle main sidebar", exact: true });
+  expect(document.querySelector("[data-thread-details-panel]")).toBeNull();
+  await userEvent.click(toggle);
+  await quiet();
+  expect(document.querySelector("[data-thread-details-panel]")).toBeNull();
+  await userEvent.click(toggle);
+  await quiet();
+  expect(document.querySelector("[data-thread-details-panel]")).toBeNull();
+  await userEvent.click(toggle);
+  const detailsToggle = page.getByRole("button", {
+    name: "Toggle thread details panel",
+    exact: true,
+  });
+  await userEvent.click(detailsToggle);
+  await expect.element(page.getByRole("region", { name: "Thread details" })).toBeVisible();
+  await userEvent.click(detailsToggle);
+  await expect
+    .element(page.getByRole("region", { name: "Thread details" }))
+    .not.toBeInTheDocument();
+  await userEvent.click(toggle);
+  await quiet();
+  expect(document.querySelector("[data-thread-details-panel]")).toBeNull();
+});
 
 it("app-toggle-diff-panel", async () => {
   using _clock = frozenClock();

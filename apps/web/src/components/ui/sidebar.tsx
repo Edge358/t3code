@@ -589,11 +589,20 @@ function SidebarRail({
   );
 }
 
-function SidebarInput({ className, ...props }: Omit<InputProps, "unstyled" | "variant">) {
+function SidebarInput({
+  className,
+  placeholderTone = "default",
+  ...props
+}: Omit<InputProps, "unstyled" | "variant"> & {
+  placeholderTone?: "default" | "quiet";
+}) {
   return (
     <Input
       className={cn(
-        "[&_[data-slot=input]]:h-auto [&_[data-slot=input]]:p-0 [&_[data-slot=input]]:font-medium [&_[data-slot=input]]:text-sidebar-foreground [&_[data-slot=input]]:text-sm [&_[data-slot=input]]:leading-normal [&_[data-slot=input]]:placeholder:text-sidebar-muted-foreground",
+        "[&_[data-slot=input]]:h-auto [&_[data-slot=input]]:p-0 [&_[data-slot=input]]:font-medium [&_[data-slot=input]]:text-sidebar-foreground [&_[data-slot=input]]:text-sm [&_[data-slot=input]]:leading-normal",
+        placeholderTone === "quiet"
+          ? "[&_[data-slot=input]]:placeholder:text-[0.5em] [&_[data-slot=input]]:placeholder:text-sidebar-foreground [&_[data-slot=input]]:placeholder:opacity-40"
+          : "[&_[data-slot=input]]:placeholder:text-sidebar-muted-foreground",
         className,
       )}
       unstyled

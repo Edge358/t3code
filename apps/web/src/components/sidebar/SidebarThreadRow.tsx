@@ -372,9 +372,9 @@ function SidebarThreadTooltip({
             ) : (
               <CircleDashedIcon className="size-3 shrink-0 stroke-current" />
             )}
-            <div className="min-w-0 truncate">
+            <div className="min-w-0 whitespace-normal break-words">
               {thread.historyDeletion.status === "failed"
-                ? "Deletion incomplete. Delete again to retry."
+                ? thread.historyDeletion.message
                 : "Deleting conversation history…"}
             </div>
           </div>
@@ -1215,8 +1215,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         {...sortableRootProps}
         {...(fileDropHandlers ?? {})}
         className={cn(
-          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_36px]",
-          metaLine !== null && multiline && "[contain-intrinsic-size:auto_54px]",
+          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(9)]",
+          metaLine !== null && multiline && "[contain-intrinsic-size:auto_--spacing(13.5)]",
           sortable?.isDragging && "relative z-20",
         )}
       >

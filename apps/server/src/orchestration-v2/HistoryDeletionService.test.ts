@@ -13,6 +13,7 @@ import {
   ProviderThreadId,
   ProviderSessionId,
   ThreadId,
+  RunId,
   type OrchestrationV2ProviderThread,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
@@ -49,6 +50,7 @@ it.effect.each([
   "side-chat-independent-pending",
   "side-chat-independent-no-parent-history",
   "detached-session",
+  "busy-session",
   "subagent-descendants",
   "cleanup-failure",
   "legacy-sweep",
@@ -274,7 +276,9 @@ it.effect.each([
           driver,
           providerInstanceId: ProviderInstanceId.make(driverName),
           providerSessionId:
-            scenario === "detached-session" && threadId === target && driverName === "codex"
+            ((scenario === "detached-session" && threadId === target) ||
+              scenario === "busy-session") &&
+            driverName === "codex"
               ? liveSessionId
               : null,
           appThreadId: threadId,
@@ -343,7 +347,7 @@ it.effect.each([
           },
         ],
       });
-      if (scenario === "detached-session") {
+      if (scenario === "detached-session" || scenario === "busy-session") {
         const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
         yield* manager.open({
           threadId: target,
@@ -355,6 +359,52 @@ it.effect.each([
             interactionMode: "default",
           },
         });
+        if (scenario === "busy-session") {
+          yield* manager.open({
+            threadId: neighbor,
+            providerSessionId: liveSessionId,
+            modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "test" },
+            runtimePolicy: {
+              cwd: process.cwd(),
+              runtimeMode: "full-access",
+              interactionMode: "default",
+            },
+          });
+          yield* events.write({
+            events: [
+              {
+                id: EventId.make("neighbor-working"),
+                type: "run.updated",
+                threadId: neighbor,
+                occurredAt: now,
+                payload: {
+                  id: RunId.make("neighbor-run"),
+                  threadId: neighbor,
+                  ordinal: 1,
+                  providerInstanceId: ProviderInstanceId.make("codex"),
+                  modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "test" },
+                  providerThreadId: ProviderThreadId.make("neighbor-history"),
+                  userMessageId: MessageId.make("neighbor-message"),
+                  rootNodeId: null,
+                  activeAttemptId: null,
+                  status: "running",
+                  requestedAt: now,
+                  startedAt: now,
+                  completedAt: null,
+                  checkpointId: null,
+                  contextHandoffId: null,
+                },
+              },
+            ],
+          });
+          assert.deepEqual(
+            yield* manager.otherWorkingThreads({
+              providerSessionId: liveSessionId,
+              threadId: target,
+            }),
+            [neighbor],
+          );
+        }
         yield* events.write({
           events: [
             {
@@ -469,6 +519,7 @@ it.effect.each([
         scenario === "partial" ||
           scenario === "shared-partial" ||
           scenario === "cleanup-failure" ||
+          scenario === "busy-session" ||
           scenario === "side-chat-partial" ||
           scenario === "side-chat-independent-failed" ||
           scenario === "side-chat-independent-pending"
@@ -570,6 +621,8 @@ it.effect.each([
       }
       if (scenario === "cleanup-failure") {
         assert.isNull(first.deletedAt);
+        assert.include(first.historyDeletion!.message, "conversation logs");
+        assert.notInclude(first.historyDeletion!.message, "locked fixture");
         assert.lengthOf(
           yield* sql`SELECT * FROM orchestration_v2_projection_messages WHERE thread_id = ${target}`,
           1,
@@ -584,6 +637,39 @@ it.effect.each([
         yield* worker.drain();
         assert.deepEqual(cleanupCalls, ["checkpoints", "logs", "logs"]);
         assert.sameMembers(calls, ["codex-first", "claude", "codex-return"]);
+      }
+      if (scenario === "busy-session") {
+        assert.isNull(first.deletedAt);
+        assert.isTrue(writerOpen);
+        assert.deepEqual(calls, []);
+        assert.include(
+          first.historyDeletion!.message,
+          "Another conversation is still using this provider",
+        );
+        assert.include(first.historyDeletion!.message, "Wait for its work to finish or stop it");
+        const neighborRecords = yield* projections.getThreadRecords(neighbor, ["runs"]);
+        const run = neighborRecords.runs[0]!;
+        yield* events.write({
+          events: [
+            {
+              id: EventId.make("neighbor-finished"),
+              type: "run.updated",
+              threadId: neighbor,
+              occurredAt: now,
+              payload: { ...run, status: "completed", completedAt: now },
+            },
+          ],
+        });
+        yield* orchestrator.dispatch({
+          type: "thread.delete",
+          threadId: target,
+          commandId: CommandId.make("retry-after-neighbor-finished"),
+        });
+        yield* worker.drain();
+        yield* orchestrator.awaitThreadDeletion(target);
+        assert.isFalse(writerOpen);
+        assert.sameMembers(calls, ["codex-first", "claude", "codex-return"]);
+        assert.isNull((yield* projections.getThread(neighbor)).deletedAt);
       }
       const final = yield* projections.getThread(target);
       if (final.deletedAt !== null) {
