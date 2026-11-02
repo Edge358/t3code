@@ -53,6 +53,28 @@ beforeEach(() => {
 });
 
 describe("discardComposerDraft", () => {
+  it("discards and restores an empty new-thread session without composer content", async () => {
+    useComposerDraftStore.getState().setProjectDraftThreadId(projectRef, draftId);
+    const before = useComposerDraftStore.getState();
+    expect(before.getComposerDraft(draftId)).toBeNull();
+
+    discardComposerDraft(draftId);
+    expect(useComposerDraftStore.getState().getDraftSession(draftId)).toBeNull();
+    expect(
+      useComposerDraftStore.getState().logicalProjectDraftThreadKeyByLogicalProjectKey,
+    ).toEqual({});
+
+    const result = await undoNotice().undo();
+    expect(result._tag).toBe("Success");
+    const after = useComposerDraftStore.getState();
+    expect(after.getDraftSession(draftId)).toEqual(before.getDraftSession(draftId));
+    expect(after.getComposerDraft(draftId)).toBeNull();
+    expect(after.logicalProjectDraftThreadKeyByLogicalProjectKey).toEqual(
+      before.logicalProjectDraftThreadKeyByLogicalProjectKey,
+    );
+    undoNotice().commit?.();
+  });
+
   it("restores a discarded new-thread draft with its project mapping and a usable preview", async () => {
     using preview = imagePreview();
     const store = useComposerDraftStore.getState();

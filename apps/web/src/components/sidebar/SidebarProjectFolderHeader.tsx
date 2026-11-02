@@ -1,7 +1,7 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { ChevronDownIcon, SquarePenIcon } from "lucide-react";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 
 import { cn } from "~/lib/utils";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
@@ -38,12 +38,27 @@ export function sidebarFolderRowId(projectKey: string) {
 export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHeader(props: {
   group: SidebarProjectSnapshot;
   collapsed: boolean;
+  draggable?: boolean;
+  onMove?: (draggedKey: string, targetKey: string) => void;
   hiddenThreads: readonly EnvironmentThreadShell[];
   onToggle: (group: SidebarProjectSnapshot) => void;
   onNewThread: (group: SidebarProjectSnapshot) => void;
   onContextMenu: (group: SidebarProjectSnapshot, position: { x: number; y: number }) => void;
 }) {
   const { group, collapsed, hiddenThreads } = props;
+  const [dropTarget, setDropTarget] = useState(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clear native drag feedback even when Escape cancels or the drop lands outside this header
+  useEffect(() => {
+    if (!dropTarget) return;
+    const clear = () => setDropTarget(false);
+    document.addEventListener("dragend", clear);
+    document.addEventListener("drop", clear);
+    return () => {
+      document.removeEventListener("dragend", clear);
+      document.removeEventListener("drop", clear);
+    };
+  }, [dropTarget]);
+
   const rowId = sidebarFolderRowId(group.projectKey);
   const localLastVisitedAtById = useUiStateStore((state) => state.threadLastVisitedAtById);
   const dot = collapsed
@@ -62,13 +77,49 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
   return (
     <li
       data-testid="sidebar-project-folder"
-      className="group/project-folder relative mt-2 list-none first:mt-0"
+      className={cn(
+        "group/project-folder relative mt-2 list-none first:mt-0",
+        dropTarget && props.draggable && "rounded-md ring-1 ring-ring",
+      )}
+      onDragOver={(event) => {
+        if (!props.draggable || !event.dataTransfer.types.includes("application/x-t3-project"))
+          return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        setDropTarget(true);
+      }}
+      onDragLeave={(event) => {
+        if (
+          !(event.relatedTarget instanceof Node) ||
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setDropTarget(false);
+      }}
+      onDrop={(event) => {
+        setDropTarget(false);
+        if (!props.draggable) return;
+        const source = event.dataTransfer.getData("application/x-t3-project");
+        if (!source) return;
+        event.preventDefault();
+        event.stopPropagation();
+        props.onMove?.(source, group.projectKey);
+      }}
     >
       <button
         type="button"
         role="treeitem"
         tabIndex={-1}
         data-sidebar-row={rowId}
+        draggable={props.draggable ?? false}
+        onDragStart={(event) => {
+          if (!props.draggable) {
+            event.preventDefault();
+            return;
+          }
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("application/x-t3-project", group.projectKey);
+        }}
+        onDragEnd={() => setDropTarget(false)}
         aria-expanded={!collapsed}
         onClick={() => props.onToggle(group)}
         onContextMenu={(event) => {

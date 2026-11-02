@@ -13,6 +13,13 @@ installing Codex and Claude, signing in, and opening T3. No coding experience ne
 
 ## Start here: this custom build
 
+On the development machine, begin with the [workspace README one folder above](../README.md)
+(`E:\Projects\GitHub\README.md`). It links the current private notes, saved review
+checkpoint, installer reference and next-update process. That workspace file and
+the private notes are local-only; the reusable
+[upstream review procedure](CUSTOM_CHANGES.md#reviewing-newer-upstream-changes)
+is included with this source.
+
 For everyday use, open the installed T3 Code shortcut. The repository's
 `Start Private T3.cmd` opens a separate development copy and retained profile
 under the Git-ignored `.local` folder. Installing the app does not import that

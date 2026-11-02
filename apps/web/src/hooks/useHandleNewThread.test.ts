@@ -243,7 +243,7 @@ vi.mock("../threadRoutes", () => ({
 }));
 vi.mock("../uiStateStore", () => ({
   legacyProjectCwdPreferenceKey: () => "remote-project",
-  useUiStateStore: () => [],
+  useUiStateStore: Object.assign(() => [], { getState: () => ({ setProjectExpanded: () => {} }) }),
 }));
 vi.mock("./useSettings", () => ({ getClientSettings: () => ({}) }));
 

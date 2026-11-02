@@ -1239,11 +1239,14 @@ export function useComposerSend(input: ComposerSendInput) {
     clearComposerDraftContent(composerDraftTarget);
     composerRef.current?.resetCursorState();
 
-    const title = deriveThreadTitleSeed({
-      text: messageTextForSend,
-      attachments: composerAttachmentsSnapshot,
-      fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
-    });
+    const customDraftTitle = isLocalDraftThread ? draftThread?.title : undefined;
+    const title =
+      customDraftTitle ??
+      deriveThreadTitleSeed({
+        text: messageTextForSend,
+        attachments: composerAttachmentsSnapshot,
+        fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
+      });
     const threadCreateModelSelection = createModelSelection(
       ctxSelectedModelSelection.instanceId,
       ctxSelectedModel || activeProjectDefaultModelSelection?.model || DEFAULT_MODEL,
@@ -1354,7 +1357,7 @@ export function useComposerSend(input: ComposerSendInput) {
             }),
           },
           modelSelection: ctxSelectedModelSelection,
-          titleSeed: title,
+          ...(customDraftTitle ? {} : { titleSeed: title }),
           runtimeMode,
           interactionMode: sendInteractionMode,
           dispatchMode: turnDispatchMode,

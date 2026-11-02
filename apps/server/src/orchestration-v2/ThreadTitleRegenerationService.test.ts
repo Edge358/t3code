@@ -342,7 +342,7 @@ describe("ThreadTitleRegenerationService", () => {
         const abandoned = yield* threads.getThreadProjection(threadId);
         assert.isNotOk(abandoned.thread.titleRegeneration);
 
-        yield* armRegeneration({ command: "command:title:arm:2", threadId });
+        const renamedRequest = yield* armRegeneration({ command: "command:title:arm:2", threadId });
         yield* threads.dispatch({
           type: "thread.metadata.update",
           commandId: CommandId.make("command:title:arm:rename"),
@@ -352,6 +352,13 @@ describe("ThreadTitleRegenerationService", () => {
         const renamed = yield* threads.getThreadProjection(threadId);
         assert.equal(renamed.thread.title, "Manual title");
         assert.isNotOk(renamed.thread.titleRegeneration);
+        yield* (yield* ThreadTitleRegeneration.ThreadTitleRegenerationService).execute({
+          threadId,
+          requestId: renamedRequest,
+          kind: { type: "regenerate" },
+        });
+        assert.equal((yield* threads.getThreadProjection(threadId)).thread.title, "Manual title");
+        assert.equal(harness.generateThreadTitle.mock.calls.length, 0);
       }).pipe(Effect.provide(harness.layer));
     }),
   );

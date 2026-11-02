@@ -249,7 +249,7 @@ import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { SidebarHeaderIconButton, SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
 import { TooltipProvider } from "./ui/tooltip";
-import { composerDraftHasUserContent, DraftId, useComposerDraftStore } from "../composerDraftStore";
+import { DraftId, useComposerDraftStore } from "../composerDraftStore";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
 import {
   SidebarSearchResultRow,
@@ -523,13 +523,8 @@ function useSidebarThreads(input: {
           return {
             group: folder.group,
             collapsed,
-            // A closed folder still shows the open thread, and hints at the rest.
-            threads: collapsed
-              ? routeThreadOnly(folder.threads, routeRowThreadKey)
-              : folder.threads,
-            hiddenThreads: collapsed
-              ? folder.threads.filter((thread) => threadShellKey(thread) !== routeRowThreadKey)
-              : EMPTY_THREADS,
+            threads: collapsed ? EMPTY_THREADS : folder.threads,
+            hiddenThreads: collapsed ? folder.threads : EMPTY_THREADS,
           };
         });
   const orderedThreads = [
@@ -979,6 +974,29 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   });
   const boringSidebarEnabled = useBoringSidebarEnabled();
   const folderRowsMultiline = useClientSettings((settings) => settings.boringSidebarMultilineRows);
+  const manualProjectOrder = useClientSettings(
+    (settings) => settings.sidebarProjectSortOrder === "manual",
+  );
+  const draftSessions = useComposerDraftStore((store) => store.draftThreadsByThreadKey);
+  const draftProjectKeys = new Set(
+    Object.values(draftSessions)
+      .filter((session) => session.promotedTo == null)
+      .map((session) => `${session.environmentId}:${session.projectId}`),
+  );
+  const moveProjectFolder = (draggedKey: string, targetKey: string) => {
+    if (!manualProjectOrder) return;
+    const dragged = projectGroups.find((group) => group.projectKey === draggedKey);
+    const target = projectGroups.find((group) => group.projectKey === targetKey);
+    if (!dragged || !target) return;
+    useUiStateStore.getState().reorderProjects(
+      projectGroups.flatMap((group) =>
+        group.memberProjects.map((member) => member.physicalProjectKey),
+      ),
+      dragged.memberProjects.map((member) => member.physicalProjectKey),
+      target.memberProjects.map((member) => member.physicalProjectKey),
+    );
+  };
+
   const newThreadContext = useHandleNewThread();
   // Row callbacks capture only the handler; the rest of the context changes with the route.
   const { handleNewThread } = newThreadContext;
@@ -1086,6 +1104,38 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ),
         );
   const threads = useQuietThreadShells();
+  const routeFolderVisit =
+    routeTarget?.kind === "draft" ? `draft:${routeTarget.draftId}` : routeThreadKey;
+  const openedFolderVisit = useRef<string | null>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- navigation from any entry point reveals and remembers its project; manual collapse is respected until the next visit
+  useEffect(() => {
+    if (routeFolderVisit === null) {
+      openedFolderVisit.current = null;
+      return;
+    }
+    if (openedFolderVisit.current === routeFolderVisit) return;
+    const routeThread =
+      routeDraftThread ?? threads.find((thread) => threadShellKey(thread) === routeThreadKey);
+    if (!routeThread) return;
+    const group = projectGroups.find((candidate) =>
+      candidate.memberProjectRefs.some(
+        (ref) =>
+          ref.environmentId === routeThread.environmentId &&
+          ref.projectId === routeThread.projectId,
+      ),
+    );
+    if (!group) return;
+    useUiStateStore.getState().setProjectExpanded(sidebarFolderExpansionKeys(group), true);
+    openedFolderVisit.current = routeFolderVisit;
+  }, [
+    routeFolderVisit,
+    routeThreadKey,
+    routeDraftThread,
+    threads,
+    projectGroups,
+    openedFolderVisit,
+  ]);
+
   const routeRowThreadKey =
     routeThreadRef === null
       ? null
@@ -1176,11 +1226,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const routeDraftIdForRows = routeTarget?.kind === "draft" ? routeTarget.draftId : null;
   const visibleDraftSessionCount = useComposerDraftStore((store) => {
     let count = 0;
-    for (const [draftKey, session] of Object.entries(store.draftThreadsByThreadKey)) {
+    for (const session of Object.values(store.draftThreadsByThreadKey)) {
       if (session.promotedTo != null) {
-        continue;
-      }
-      if (!composerDraftHasUserContent(store.draftsByThreadKey[draftKey])) {
         continue;
       }
       if (
@@ -1327,7 +1374,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         : scopedProjectGroups
       : null,
     keepEmptyFolders: (group) =>
-      scopedProjectGroups.length > 0 || (group.pinned && !group.archived),
+      scopedProjectGroups.length > 0 ||
+      (group.pinned && !group.archived) ||
+      group.memberProjectRefs.some((ref) =>
+        draftProjectKeys.has(`${ref.environmentId}:${ref.projectId}`),
+      ),
   });
 
   // Ranked across environments as the palette ranks them, so one
@@ -2490,7 +2541,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   );
 
   const handleDraftContextMenu = useStableCallback(
-    (draftId: DraftId, position: { x: number; y: number }) => {
+    (draftId: DraftId, position: { x: number; y: number }, onRename?: () => void) => {
       void (async () => {
         const api = readLocalApi();
         const session = useComposerDraftStore.getState().getDraftSession(draftId);
@@ -2516,6 +2567,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         );
         if (clicked._tag === "Failure") return;
         switch (clicked.value) {
+          case "rename":
+            if (!useComposerDraftStore.getState().getDraftSession(draftId)?.promotedTo)
+              onRename?.();
+            return;
           case "project-settings":
             if (projectGroup)
               openProjectSettings(projectGroup, {
@@ -3359,15 +3414,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                       };
                       const from = isContextDrag ? null : (dragState?.activeSection ?? null);
                       const items: ReactNode[] = [
-                        <SidebarDraftBlock
-                          key="draft-sessions"
-                          projectByKey={projectByKey}
-                          projectDisplayNameByKey={projectDisplayNameByKey}
-                          scopedProjectKeys={scopedProjectKeys}
-                          routeDraftId={routeDraftIdForRows}
-                          onNavigateToDraft={navigateToDraft}
-                          onDraftContextMenu={handleDraftContextMenu}
-                        />,
+                        projectFolders === null ? (
+                          <SidebarDraftBlock
+                            key="draft-sessions"
+                            projectByKey={projectByKey}
+                            projectDisplayNameByKey={projectDisplayNameByKey}
+                            scopedProjectKeys={scopedProjectKeys}
+                            routeDraftId={routeDraftIdForRows}
+                            onNavigateToDraft={navigateToDraft}
+                            onDraftContextMenu={handleDraftContextMenu}
+                          />
+                        ) : null,
                       ];
                       for (const item of sidebarListItems) {
                         if (item.kind === "thread") {
@@ -3383,12 +3440,33 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 key={`project-folder:${folder.group.projectKey}`}
                                 group={folder.group}
                                 collapsed={folder.collapsed}
+                                draggable={manualProjectOrder}
+                                onMove={moveProjectFolder}
                                 hiddenThreads={folder.hiddenThreads}
                                 onToggle={toggleProjectFolder}
                                 onNewThread={startThreadInProjectFolder}
                                 onContextMenu={handleProjectFolderContextMenu}
                               />,
                             );
+                            if (!folder.collapsed)
+                              items.push(
+                                <SidebarDraftBlock
+                                  key={`drafts:${folder.group.projectKey}`}
+                                  projectByKey={projectByKey}
+                                  projectDisplayNameByKey={projectDisplayNameByKey}
+                                  scopedProjectKeys={
+                                    new Set(
+                                      folder.group.memberProjectRefs.map(
+                                        (ref) => `${ref.environmentId}:${ref.projectId}`,
+                                      ),
+                                    )
+                                  }
+                                  routeDraftId={routeDraftIdForRows}
+                                  parentRowId={sidebarFolderRowId(folder.group.projectKey)}
+                                  onNavigateToDraft={navigateToDraft}
+                                  onDraftContextMenu={handleDraftContextMenu}
+                                />,
+                              );
                             for (const thread of folder.threads) {
                               items.push(
                                 renderThreadRow(

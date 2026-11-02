@@ -148,6 +148,42 @@ The existing project-organized sidebar is now enabled by default. This is the
 `boringSidebarEnabled` setting, distinct from grouping matching repositories
 across environments.
 
+### Project order, empty drafts, and open groups
+
+In **Manual** project order, drag a project heading onto another heading to move
+it in the saved order. Moving downward places it after the target; moving upward
+places it before the target. The other project sort modes do not allow dragging
+and retain their existing ordering rules. The saved manual order uses the existing
+project preference storage and survives restart and conversation deletion.
+
+Choosing a folder for a conversation immediately shows its saved empty draft under
+that project as **New thread**. Unsent drafts are saved on this client, including
+an explicit title, and do not start an AI session. The existing empty-draft reuse
+and workspace/model choices remain. The first prompt uses the normal automatic
+T3 title generation unless the user already renamed the draft. Renaming works
+from the header or sidebar; a manual title is preserved when sending, including
+multiple-model sends. T3 and provider-native titles are not synchronized.
+
+Discard also removes an untouched empty draft, even when no composer content has
+been saved. Undo restores the draft and its project association.
+
+Opening or creating a conversation expands its project without closing other
+projects. An explicitly collapsed project hides all its rows and stays collapsed
+until another visit or New thread action opens it. This applies in every project
+sort mode. The former collapsed-group exception that displayed only the current
+thread has been removed.
+
+These changes apply to the web and desktop sidebar. Native mobile navigation is
+unchanged. Implementation: [Sidebar.tsx](apps/web/src/components/Sidebar.tsx),
+[project header](apps/web/src/components/sidebar/SidebarProjectFolderHeader.tsx),
+[draft rows](apps/web/src/components/sidebar/SidebarDraftBlock.tsx), and
+[draft persistence](apps/web/src/composerDraftStore.ts). Regression coverage:
+[browser interaction](apps/web/src/components/ChatView.browser.test.tsx),
+[draft storage](apps/web/src/composerDraftStore.test.ts),
+[draft discard and Undo](apps/web/src/lib/discardComposerDraft.test.ts),
+[project preferences](apps/web/src/uiStateStore.test.ts), and
+[title generation](apps/server/src/orchestration-v2/ThreadTitleRegenerationService.test.ts).
+
 ### Home after deletion
 
 Home now stays on the neutral **What should we work on?** page until you choose
@@ -512,7 +548,10 @@ deliberate review and rebuilding. The private record, account details, raw
 network traces, real conversation screenshots, speech adapters, and the test
 profile are not part of this shareable document.
 
-Open review items are listed in the [independent review](docs/custom-build/independent-review-2026-10-31.md#for-the-next-reviewer).
+The [independent review](docs/custom-build/independent-review-2026-10-31.md#for-the-next-reviewer)
+preserves historical findings and follow-up guidance. Read its current-reading
+notice before treating any dated finding as an open defect; current validation
+limits are described in section 6 and the private build record.
 The sidebar's hover-only deletion indicator and choices about heading sizes and
 menus remain unchanged. A failed partial deletion intentionally stays marked and
 blocks new provider work until retry completes; removed history cannot be restored
@@ -522,10 +561,11 @@ by clearing that marker.
 
 ### Launch, folders, and cleanup
 
-For the installed app, use its Start Menu or desktop shortcut. To open the
-development copy, double-click [Start Private T3.cmd](Start%20Private%20T3.cmd)
-in the repository. It uses the saved development conversations and settings;
-no installer is needed for that copy.
+For the installed app, use its Start Menu or desktop shortcut. The
+[Start Private T3.cmd](Start%20Private%20T3.cmd) launcher in the repository opens
+the separate development copy with retained development data. Read the profile
+isolation requirements below before using it for requested development or tests;
+it is not the normal installed-app shortcut.
 
 All paths below are relative to the repository folder:
 
@@ -598,6 +638,57 @@ needs no change. Codex/Claude sign-in and project folders are per machine.
 Set these values in Settings. Copying an entire settings file also carries other
 preferences and the onboarding marker, so it is not part of normal installation.
 
+### Reviewing newer upstream changes
+
+An upstream release number, an upstream code snapshot, and a private build number
+identify different things. New code can exist after a published release without
+changing that release's number. A nightly label identifies a packaged snapshot;
+its exact Git commit ID is the reliable comparison point. A private build includes
+only the upstream changes deliberately adopted, together with this variant's
+customizations.
+
+Keep the upstream base and each completed review checkpoint under permanent local
+Git labels. The private build record owns the latest reviewed ID, dated label,
+decisions and installed package identity. A saved review checkpoint records the
+change inventory considered, not a claim that every change was deeply reviewed,
+adopted or tested.
+
+Reading this procedure alone does not request an update review or authorize any
+of its actions. Once a review is requested, use the following sequence.
+
+1. Read the saved review checkpoint and current custom behavior. Check the newer
+   upstream commit list, published stable release and nightly labels online first.
+   Record the exact candidate ID rather than relying on a moving page or a date.
+2. Prioritize security, data loss, crashes, provider reliability and features used
+   here. Read the actual diffs, discussion and dependencies for plausible candidates;
+   a title alone is not enough to establish a security fix or compatibility.
+3. If local comparison is needed, fetch only reference history into Git and retain
+   the candidate under a distinct local label. Fetching must not change the custom
+   working files. Verify that the previous review ID is an ancestor of the candidate
+   before using the intervening commits as the new review inventory.
+4. Report each relevant candidate as recommended now, deferred or skipped, with its
+   benefit and any conflict with the private changes. Review does not authorize
+   application. Apply selected changes only after the owner's approval.
+5. Review and test the approved adaptations, including affected private behavior.
+   Build into a separate candidate folder, preserve the installed build and fallback,
+   and obtain approval before closing the app and installing. Verify installed file
+   hashes, backend version and startup; report manual acceptance separately.
+6. Record the review boundary and decisions even when every candidate is declined.
+   Retain a new dated review label only when that inventory review is complete.
+   Downloaded or merely observed changes do not advance the reviewed checkpoint.
+   Rejected changes remain reference history and do not enter later custom builds.
+
+Review labels are permanent. For another completed review on the same day, use
+an unused suffix such as `-02`; never overwrite the earlier label. Keep candidate
+labels distinct from completed-review labels and record each full ID. If the new
+snapshot does not descend from the saved checkpoint, inspect that divergence
+before choosing a comparison range; do not silently restart from the base release.
+
+There is no need to rebuild for every upstream update. Review and installation can
+be separate sessions. Clean up disposable test data and obsolete artifacts after
+validation; keep the source, Git history, normal and retained development profiles,
+current package, one previous working package and useful verification evidence.
+
 ### Building and maintaining the source
 
 Keep the upstream Git history and v0.1.6 base intact. The custom changes are
@@ -616,11 +707,12 @@ in [CONTRIBUTING.md](CONTRIBUTING.md). Check the diff, relevant tests, typecheck
 and `.gitattributes` line endings before packaging. Do not use .NET build tools
 for this application.
 
-Close the private app before packaging. From the repository root, choose an
-unused build version; the default output is `.local/builds/current`:
+From the repository root, choose an unused build version and a separate candidate
+output folder. The app can remain open while building there. The default output
+is `.local/builds/current`, so supply an explicit output folder to preserve it:
 
 ```powershell
-pnpm.cmd run dist:desktop:win:x64 --build-version 0.1.6-private.<n>
+pnpm.cmd run dist:desktop:win:x64 --build-version 0.1.6-private.<n> --output-dir .local/builds/candidate-<n>
 ```
 
 The Git-ignored `.local` directory contains all persistent private build and
@@ -636,6 +728,11 @@ unset. Their build environment explicitly set `T3CODE_DESKTOP_SIGNED=false`,
 `T3CODE_DISABLE_AUTO_UPDATE=true`. Packaging uses the Rust toolchain on PATH.
 These do not replace the fixed source privacy policy. An unpacked executable
 requires its companion files; copying only that EXE is not an installation.
+
+Close the app normally before an authorized installation. After successful
+installation and startup verification, retain the accepted package as current
+and its predecessor as the fallback. Move older packages into the designated
+disposal folder and update their recorded locations.
 
 On Windows PowerShell, native tools can write ordinary progress to stderr. When
 capturing build logs, do not treat every stderr line as a terminating failure;

@@ -301,6 +301,7 @@ type LegacyPersistedComposerDraftStoreState = PersistedComposerDraftStoreState &
   LegacyV2StoreFields;
 
 const PersistedDraftThreadState = Schema.Struct({
+  title: Schema.optionalKey(Schema.String),
   threadId: ThreadId,
   environmentId: Schema.String,
   projectId: ProjectId,
@@ -394,6 +395,7 @@ export function composerDraftHasUserContent(
 }
 
 export interface DraftSessionState {
+  title?: string;
   threadId: ThreadId;
   environmentId: EnvironmentId;
   projectId: ProjectId;
@@ -482,6 +484,7 @@ interface ComposerDraftStoreState {
   setDraftThreadContext: (
     threadRef: ComposerThreadTarget,
     options: {
+      title?: string;
       branch?: string | null;
       worktreePath?: string | null;
       projectRef?: ScopedProjectRef;
@@ -1487,6 +1490,7 @@ function createDraftThreadState(
     options?.environmentSelection ?? existingThread?.environmentSelection;
   return {
     threadId,
+    ...(existingThread?.title ? { title: existingThread.title } : {}),
     environmentId: projectRef.environmentId,
     projectId: projectRef.projectId,
     logicalProjectKey,
@@ -1530,6 +1534,7 @@ function isDraftThreadPromoting(draftThread: DraftThreadState | null | undefined
 function draftThreadsEqual(left: DraftThreadState | undefined, right: DraftThreadState): boolean {
   return (
     !!left &&
+    left.title === right.title &&
     left.threadId === right.threadId &&
     left.environmentId === right.environmentId &&
     left.projectId === right.projectId &&
@@ -1666,6 +1671,9 @@ function normalizePersistedDraftThreads(
       const normalizedEnvironmentId = environmentId as EnvironmentId;
       draftThreadsByThreadKey[threadKey] = {
         threadId,
+        ...(typeof candidateDraftThread.title === "string" && candidateDraftThread.title.trim()
+          ? { title: candidateDraftThread.title.trim() }
+          : {}),
         environmentId: normalizedEnvironmentId,
         projectId: projectId as ProjectId,
         logicalProjectKey:
@@ -2423,6 +2431,7 @@ function toHydratedDraftThreadState(
 ): DraftThreadState {
   return {
     threadId: persistedDraftThread.threadId,
+    ...(persistedDraftThread.title ? { title: persistedDraftThread.title } : {}),
     environmentId: persistedDraftThread.environmentId as EnvironmentId,
     projectId: persistedDraftThread.projectId,
     logicalProjectKey:
@@ -2710,6 +2719,9 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
                 : existing.environmentSelection);
             const nextDraftThread: DraftThreadState = {
               threadId: existing.threadId,
+              ...((options.title ?? existing.title)
+                ? { title: options.title ?? existing.title }
+                : {}),
               environmentId: nextProjectRef.environmentId,
               projectId: nextProjectRef.projectId,
               logicalProjectKey: existing.logicalProjectKey,
@@ -2734,6 +2746,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               promotedTo: existing.promotedTo ?? null,
             };
             const isUnchanged =
+              nextDraftThread.title === existing.title &&
               nextDraftThread.environmentId === existing.environmentId &&
               nextDraftThread.projectId === existing.projectId &&
               nextDraftThread.logicalProjectKey === existing.logicalProjectKey &&

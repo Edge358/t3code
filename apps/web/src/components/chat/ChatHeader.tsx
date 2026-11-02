@@ -1,3 +1,4 @@
+import { useComposerDraftStore } from "../../composerDraftStore";
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
@@ -160,11 +161,7 @@ export const ChatHeader = memo(function ChatHeader({
   ]);
   const renameCommittedRef = useRef(false);
   const startRename = () => {
-    if (
-      !isServerThread ||
-      !readEnvironmentScope(activeThreadEnvironmentId, AuthOrchestrationOperateScope)
-    )
-      return;
+    if (!readEnvironmentScope(activeThreadEnvironmentId, AuthOrchestrationOperateScope)) return;
     renameCommittedRef.current = false;
     setRenaming({
       environmentId: activeThreadEnvironmentId,
@@ -181,6 +178,12 @@ export const ChatHeader = memo(function ChatHeader({
       return;
     }
     if (resolution.action === "noop") return;
+    if (!isServerThread) {
+      useComposerDraftStore
+        .getState()
+        .setDraftThreadContext(activeThreadRef, { title: resolution.title });
+      return;
+    }
     void updateThreadMetadata({
       environmentId: activeThreadEnvironmentId,
       input: { threadId: activeThreadId, title: resolution.title },
@@ -248,19 +251,27 @@ export const ChatHeader = memo(function ChatHeader({
   };
   const handleHeaderContextMenu = (event: ReactMouseEvent) => {
     if (renamingTitle !== null) return;
-    if (!isServerThread && onOpenProjectSettings === undefined) return;
     cancelPendingTitleMenu();
     event.preventDefault();
     if (!isServerThread) {
       const api = readLocalApi();
       if (!api) return;
       void api.contextMenu
-        .show([{ id: "project-settings", label: "Project settings", icon: "settings" }], {
-          x: event.clientX,
-          y: event.clientY,
-        })
+        .show(
+          [
+            { id: "rename", label: "Rename", icon: "pencil" },
+            ...(onOpenProjectSettings
+              ? [{ id: "project-settings", label: "Project settings", icon: "settings" }]
+              : []),
+          ],
+          {
+            x: event.clientX,
+            y: event.clientY,
+          },
+        )
         .then((action) => {
           if (action === "project-settings") onOpenProjectSettings?.();
+          if (action === "rename") startRename();
         });
       return;
     }
@@ -405,6 +416,7 @@ export const ChatHeader = memo(function ChatHeader({
                 render={
                   <h2
                     aria-label={activeThreadTitle}
+                    onDoubleClick={handleTitleDoubleClick}
                     className="min-w-0 flex-1"
                     dir={textDirection(activeThreadTitle)}
                   />

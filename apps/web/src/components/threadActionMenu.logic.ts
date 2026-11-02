@@ -30,6 +30,7 @@ export type ThreadActionMenuId =
   | "delete";
 
 export type DraftActionMenuId =
+  | "rename"
   | "copy"
   | "copy-path"
   | "copy-branch"
@@ -42,6 +43,7 @@ export function buildDraftActionMenuItems(options: {
   readonly hasProject: boolean;
 }): ReadonlyArray<ContextMenuItem<DraftActionMenuId>> {
   return [
+    { id: "rename", label: "Rename", icon: "pencil" },
     {
       id: "copy",
       label: "Copy",

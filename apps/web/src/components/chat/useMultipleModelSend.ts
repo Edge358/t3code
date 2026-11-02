@@ -128,10 +128,15 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
       const context = buildOutgoingMessageContext(
         boundAttachmentIds(attachments, attachmentsSnapshot),
       );
-      const title = deriveThreadTitleSeed({
-        text: messageText,
-        attachments: attachmentsSnapshot,
-      });
+      const customDraftTitle = draftId
+        ? useComposerDraftStore.getState().getDraftSession(draftId)?.title
+        : undefined;
+      const title =
+        customDraftTitle ??
+        deriveThreadTitleSeed({
+          text: messageText,
+          attachments: attachmentsSnapshot,
+        });
       promptRef.current = "";
       clearComposerDraftContent(composerDraftTarget);
       composerRef.current?.resetCursorState();
@@ -172,7 +177,7 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
                     }),
                   },
                   modelSelection: target.selection,
-                  titleSeed: title,
+                  ...(customDraftTitle ? {} : { titleSeed: title }),
                   runtimeMode,
                   interactionMode: target.interactionMode,
                   bootstrap: {

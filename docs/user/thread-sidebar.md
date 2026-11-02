@@ -18,6 +18,11 @@ folder…**, then **Local folder**. The button beside a project starts directly
 in that project; Shift-clicking the top button starts in the current project.
 A new thread carries your model and mode selections, unless the destination
 project has its own model default.
+The project and an empty **New thread** appear in the sidebar before you send.
+Unsent drafts are saved on this device and do not start an AI conversation.
+The first message generates a title unless you already renamed the draft;
+your manual name is preserved. Discard removes even an untouched draft, and
+**Undo** restores it.
 Its branch and workspace mode come from your configured defaults. To continue in
 an existing worktree, use **New thread in this worktree** from the branch toolbar.
 
@@ -65,6 +70,17 @@ To send the same prompt to several models on web or desktop, **Shift-click** mod
 in a new thread's model picker to add or remove them. A regular click returns to a
 single model. Choose a base branch and send. Each selection starts a separate thread
 and worktree while you stay in the new thread composer. This requires a Git project.
+
+## Arrange projects
+
+On web and desktop, choose **Manual** project order in the sidebar's ordering
+menu, then drag project headings into your preferred order. Other sorting modes
+keep their automatic rules and disable project dragging. Your manual order is
+saved across restarts and conversation deletion.
+
+Opening a conversation or creating a draft expands its project without closing
+other projects. A project you collapse stays closed until you visit a conversation
+in it or create another thread there.
 
 ## Pin and reorder threads
 

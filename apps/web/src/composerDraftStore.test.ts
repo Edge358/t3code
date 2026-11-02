@@ -890,6 +890,29 @@ describe("composerDraftStore project draft thread mapping", () => {
     expect(store.getComposerDraft(draftId)?.prompt).toBe("keep this prompt");
   });
 
+  it("keeps an empty thread and its manual title through workspace changes and rehydration", () => {
+    const store = useComposerDraftStore.getState();
+    store.setProjectDraftThreadId(projectRef, draftId, { threadId });
+    store.setDraftThreadContext(draftId, { title: "My empty thread" });
+    store.setDraftThreadContext(draftId, { branch: "feature/test" });
+    store.setProjectDraftThreadId(projectRef, draftId, { threadId });
+    const persisted = JSON.parse(
+      JSON.stringify(partializeComposerDraftStoreState(useComposerDraftStore.getState())),
+    );
+    const restored = useComposerDraftStore.persist.getOptions().merge!(
+      persisted,
+      useComposerDraftStore.getInitialState(),
+    );
+    expect(restored.draftThreadsByThreadKey[draftId]).toMatchObject({
+      title: "My empty thread",
+      threadId,
+      branch: "feature/test",
+    });
+    expect(
+      restored.logicalProjectDraftThreadKeyByLogicalProjectKey[scopedProjectKey(projectRef)],
+    ).toBe(draftId);
+  });
+
   it("rotates a failed bootstrap thread id without losing its draft", () => {
     const store = useComposerDraftStore.getState();
     const retryThreadId = ThreadId.make("thread-retry");
