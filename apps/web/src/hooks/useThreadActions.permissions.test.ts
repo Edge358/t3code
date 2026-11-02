@@ -34,7 +34,11 @@ const state = vi.hoisted(() => ({
     session: { status: "ready" | "stopped" } | null;
     latestTurn: null;
   }[],
-  requests: [] as { action: string; environmentId: string; input: { threadId?: string } }[],
+  requests: [] as {
+    action: string;
+    environmentId: string;
+    input: { threadId?: string; awaitCompletion?: boolean };
+  }[],
   localEffects: [] as string[],
   confirm: vi.fn<(message: string) => Promise<boolean>>(),
   toasts: [] as string[],
@@ -442,6 +446,9 @@ describe("thread action permissions", () => {
       const result = await useThreadActions().deleteThread(target);
       expect(result._tag).toBe("Success");
       expect(state.requests.map((request) => request.action)).toEqual(["stopSession", "delete"]);
+      expect(
+        state.requests.find((request) => request.action === "delete")?.input.awaitCompletion,
+      ).toBe(true);
       expect(state.toasts).toContain("Failed to delete worktree");
       expect(state.localEffects).toContain("clear-terminal-ui");
     } finally {

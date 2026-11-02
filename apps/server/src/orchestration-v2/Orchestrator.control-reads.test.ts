@@ -652,8 +652,58 @@ it.effect(
         commandId: CommandId.make("delete-with-old-history"),
         threadId,
       });
-      assert.isNotNull((yield* projections.getThread(threadId)).deletedAt);
+      const deletion = (yield* projections.getThread(threadId)).historyDeletion;
+      assert.equal(deletion?.status, "pending");
     }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("keeps the store's read failure as the cause when a command projection fails", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const sql = yield* SqlClient.SqlClient;
+    const now = DateTime.formatIso(yield* DateTime.now);
+    const unreadableMessage = ThreadId.make("thread:control-unreadable-message");
+    const unreadableRequest = ThreadId.make("thread:control-unreadable-request");
+    for (const threadId of [unreadableMessage, unreadableRequest]) {
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make(`create:${threadId}`),
+        threadId,
+        projectId: ProjectId.make("project:control-unreadable"),
+        title: "Unreadable",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        createdBy: "user",
+        creationSource: "web",
+      });
+    }
+    yield* sql`INSERT INTO orchestration_v2_projection_messages
+      (message_id, thread_id, run_id, node_id, role, streaming, created_at, updated_at, payload_json)
+      VALUES ('obsolete-user', ${unreadableMessage}, NULL, NULL, 'user', 0, ${now}, ${now}, '{"obsolete":true}')`;
+    yield* sql`INSERT INTO orchestration_v2_projection_runtime_requests
+      (runtime_request_id, thread_id, node_id, kind, status, created_at, payload_json)
+      VALUES ('request:unreadable', ${unreadableRequest}, 'node:unreadable', 'user-input', 'pending', ${now}, '{}')`;
+    for (const command of [
+      {
+        type: "queue.resume",
+        commandId: CommandId.make("resume-unreadable"),
+        threadId: unreadableMessage,
+      },
+      {
+        type: "thread.user-input.dismiss",
+        commandId: CommandId.make("dismiss-unreadable"),
+        threadId: unreadableRequest,
+        requestId: RuntimeRequestId.make("request:unreadable"),
+      },
+    ] as const) {
+      const failure = yield* orchestrator.dispatch(command).pipe(Effect.flip);
+      assert.instanceOf(failure, Orchestrator.OrchestratorProjectionError);
+      assert.instanceOf(failure.cause, ProjectionStore.ProjectionStoreReadError);
+    }
+  }).pipe(Effect.provide(layerTest)),
 );
 
 it.effect("implements a proposed plan that the command projection leaves out", () =>
@@ -1356,9 +1406,16 @@ it.effect.each([false, true])("rejects thread.create for an existing id (deleted
         commandId: CommandId.make(`delete:${threadId}`),
         threadId,
       });
+      const state = (yield* projections.getThread(threadId)).historyDeletion!;
+      yield* orchestrator.dispatch({
+        type: "thread.history-deletion.update",
+        commandId: CommandId.make(`complete-delete:${threadId}`),
+        threadId,
+        state: { ...state, status: "complete" },
+      });
     }
     const before = yield* projections.getThread(threadId);
-    assert.isNotNull(before.activeProviderThreadId);
+    assert.equal(before.activeProviderThreadId === null, deleted);
     assert.equal(before.deletedAt !== null, deleted);
     const sequence = yield* orchestrator.getThreadEventSequence(threadId);
     yield* TestClock.adjust("1 second");

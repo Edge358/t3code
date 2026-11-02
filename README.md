@@ -21,9 +21,10 @@ the private notes are local-only; the reusable
 is included with this source.
 
 For everyday use, open the installed T3 Code shortcut. The repository's
-`Start Private T3.cmd` opens a separate development copy and retained profile
-under the Git-ignored `.local` folder. Installing the app does not import that
-profile. See [installation and data locations](CUSTOM_CHANGES.md#installing-on-this-or-another-windows-machine).
+`Start Private T3.cmd` opens a separate development copy using `.local/profile`,
+creating that profile if absent. It does not open or import the installed app's
+data or the old source folder's profile. See
+[installation and data locations](CUSTOM_CHANGES.md#installing-on-this-or-another-windows-machine).
 
 For maintainers considering individual changes, the
 [contribution candidates](CUSTOM_CHANGES.md#7-possible-independent-upstream-proposals)
@@ -33,16 +34,16 @@ workflow preferences are distinguished from reliability fixes.
 Use this README as the project map. The linked documents contain the details;
 update those documents rather than copying their contents here.
 
-| What you need                                                       | Where to go                                                                            |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Open the private app; find or clean up its files                    | [Launch, folders, and cleanup](CUSTOM_CHANGES.md#launch-folders-and-cleanup)           |
-| What changed, why, and which defaults changed                       | [Custom changes](CUSTOM_CHANGES.md)                                                    |
-| Code review, tests and known limitations                            | [Verification approach](CUSTOM_CHANGES.md#6-verification-approach)                     |
-| Security/privacy findings and protections                           | [Privacy review](docs/custom-build/privacy-review.md)                                  |
-| Independent code review, fixes applied, brief for the next reviewer | [Independent review](docs/custom-build/independent-review-2026-10-31.md)               |
-| How to maintain and build this variant                              | [Build guidance](CUSTOM_CHANGES.md#9-maintaining-and-building-this-variant)            |
-| Possible separate contributions to upstream                         | [Contribution candidates](CUSTOM_CHANGES.md#7-possible-independent-upstream-proposals) |
-| Deferred features and unverified work                               | [Remaining scope](CUSTOM_CHANGES.md#8-deferred-work-and-publication-boundary)          |
+| What you need                                            | Where to go                                                                            |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Open the private app; find or clean up its files         | [Launch, folders, and cleanup](CUSTOM_CHANGES.md#launch-folders-and-cleanup)           |
+| What changed, why, and which defaults changed            | [Custom changes](CUSTOM_CHANGES.md)                                                    |
+| Code review, tests and known limitations                 | [Verification approach](CUSTOM_CHANGES.md#6-verification-approach)                     |
+| Security/privacy findings and protections                | [Privacy review](docs/custom-build/privacy-review.md)                                  |
+| Historical independent review and its fixes (October 31) | [Independent review](docs/custom-build/independent-review-2026-10-31.md)               |
+| How to maintain and build this variant                   | [Build guidance](CUSTOM_CHANGES.md#9-maintaining-and-building-this-variant)            |
+| Possible separate contributions to upstream              | [Contribution candidates](CUSTOM_CHANGES.md#7-possible-independent-upstream-proposals) |
+| Deferred features and unverified work                    | [Remaining scope](CUSTOM_CHANGES.md#8-deferred-work-and-publication-boundary)          |
 
 Machine-specific notes (the build record, the install handoff, and the archive) live in
 the Git-ignored `docs/local` folder on the development machine. They are not part of the
@@ -52,7 +53,7 @@ repository and need their own backup.
 
 T3 Code is an "agent harness control surface". It enables control of the agents on your machine with a best-in-class mobile app ([iOS](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824), [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code)), [web app](https://app.t3.codes) and [Electron-based desktop app](https://t3.codes).
 
-Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, and Google Antigravity. If they're set up on your computer, T3 Code can control them.
+Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, Google Antigravity, and fx. If they're set up on your computer, T3 Code can control them.
 
 ## "Wait, what are you selling me?"
 
@@ -63,7 +64,7 @@ We wanted something performant, remote-ready, and truly open. If we ever go the 
 ## Installation
 
 > [!WARNING]
-> T3 Code currently supports Codex, Claude, Cursor, Grok Build, OpenCode, and Antigravity. Install and authenticate at least one provider before use:
+> T3 Code currently supports Codex, Claude, Cursor, Grok Build, OpenCode, Antigravity, and fx. Install and authenticate at least one provider before use:
 >
 > - Codex: install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login`
 > - Claude: install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login`
@@ -71,6 +72,7 @@ We wanted something performant, remote-ready, and truly open. If we ever go the 
 > - Grok Build: install [Grok Build CLI](https://x.ai/cli) and run `grok login`
 > - OpenCode: install [OpenCode](https://opencode.ai) and run `opencode auth login`
 > - Antigravity: enable it in Settings, then use **Install Antigravity** and **Sign in with Google**. No CLI is required.
+> - fx: install [fx](https://fx.sh) and run `fx login` on the machine running the T3 Code server ([setup guide](./docs/user/providers-fx.md))
 
 ### Command line
 

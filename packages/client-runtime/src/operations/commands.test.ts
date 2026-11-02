@@ -18,10 +18,15 @@ import {
   type OrchestrationV2ThreadLaunchInput,
   type OrchestrationV2ThreadProjection,
   type ProjectMutation,
+  type OrchestrationV2ThreadStreamItem,
+  EventId,
 } from "@t3tools/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
+import * as Deferred from "effect/Deferred";
+import * as Fiber from "effect/Fiber";
+import * as Stream from "effect/Stream";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as SubscriptionRef from "effect/SubscriptionRef";
@@ -37,6 +42,7 @@ import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import { v2Now, v2Projection, v2ThreadId } from "../state/orchestrationV2TestFixtures.ts";
 import {
   archiveThread,
+  deleteThread,
   interruptThreadTurn,
   revertThreadCheckpoint,
   resumeThreadQueue,
@@ -65,8 +71,10 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
   readonly projection?: OrchestrationV2ThreadProjection;
   readonly projectionRequests?: ThreadId[];
   readonly advertiseThreadStop?: boolean;
+  readonly deletionStream?: Stream.Stream<OrchestrationV2ThreadStreamItem>;
 }) {
   const client = {
+    [ORCHESTRATION_V2_WS_METHODS.subscribeThread]: () => input.deletionStream ?? Stream.never,
     [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command: OrchestrationV2Command) =>
       Effect.sync(() => {
         input.commands.push(command);
@@ -116,7 +124,7 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
         },
       },
     } as never),
-    subscribeServerConfig: (input) => client.subscribeServerConfig(input),
+    subscribeServerConfig: (input = {}) => client.subscribeServerConfig(input),
     ready: Effect.void,
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),
@@ -134,6 +142,120 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
 });
 
 describe("V2 environment commands", () => {
+  it.effect.each(["complete", "failed"] as const)(
+    "checks cleanup that finished before subscribing: %s",
+    (status) =>
+      Effect.gen(function* () {
+        const supervisor = yield* makeSupervisor({
+          commands: [],
+          projects: [],
+          deletionStream: Stream.make({
+            kind: "snapshot",
+            snapshotSequence: 2,
+            projection: {
+              ...v2Projection,
+              thread: {
+                ...v2Projection.thread,
+                deletedAt: status === "complete" ? v2Now : null,
+                historyDeletion: {
+                  requestId: CommandId.make("delete"),
+                  status,
+                  message: "Cleanup result",
+                  targets: [],
+                },
+              },
+            },
+          } satisfies OrchestrationV2ThreadStreamItem),
+        });
+        const result = yield* deleteThread({
+          commandId: CommandId.make("delete"),
+          threadId: v2ThreadId,
+          awaitCompletion: true,
+        }).pipe(
+          Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+          Effect.result,
+        );
+        expect(result._tag).toBe(status === "complete" ? "Success" : "Failure");
+      }).pipe(Effect.provide(layerTestCrypto)),
+  );
+
+  it.effect.each(["complete", "failed"] as const)(
+    "waits for history cleanup before folder removal: %s",
+    (status) =>
+      Effect.gen(function* () {
+        const subscribed = yield* Deferred.make<void>();
+        const finish = yield* Deferred.make<void>();
+        let folderRemovalReached = false;
+        const pending = {
+          ...v2Projection.thread,
+          historyDeletion: {
+            requestId: CommandId.make("delete"),
+            status: "pending" as const,
+            message: "Deleting conversation history",
+            targets: [],
+          },
+        };
+        const terminal: OrchestrationV2ThreadStreamItem = {
+          kind: "event",
+          sequence: 2,
+          event: {
+            id: EventId.make("deletion-result"),
+            threadId: v2ThreadId,
+            type: status === "complete" ? "thread.deleted" : "thread.metadata-updated",
+            occurredAt: v2Now,
+            payload: {
+              ...pending,
+              deletedAt: status === "complete" ? v2Now : null,
+              historyDeletion: { ...pending.historyDeletion, status, message: "Cleanup failed" },
+            },
+          },
+        };
+        const supervisor = yield* makeSupervisor({
+          commands: [],
+          projects: [],
+          deletionStream: Stream.make({
+            kind: "snapshot",
+            snapshotSequence: 1,
+            projection: { ...v2Projection, thread: pending },
+          } satisfies OrchestrationV2ThreadStreamItem).pipe(
+            Stream.concat(
+              Stream.fromEffect(
+                Deferred.succeed(subscribed, undefined).pipe(
+                  Effect.andThen(Deferred.await(finish)),
+                  Effect.as(terminal),
+                ),
+              ),
+            ),
+          ),
+        });
+        const operation = yield* deleteThread({
+          awaitCompletion: true,
+          commandId: CommandId.make("delete"),
+          threadId: v2ThreadId,
+        }).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              folderRemovalReached = true;
+            }),
+          ),
+          Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+          Effect.result,
+          Effect.forkChild,
+        );
+        expect(
+          yield* Effect.raceFirst(
+            Deferred.await(subscribed).pipe(Effect.as("waiting")),
+            Fiber.join(operation).pipe(Effect.as("returned")),
+          ),
+        ).toBe("waiting");
+        expect(folderRemovalReached).toBe(false);
+        yield* Deferred.succeed(finish, undefined);
+        const result = yield* Fiber.join(operation);
+        expect(result._tag).toBe(status === "complete" ? "Success" : "Failure");
+        expect(folderRemovalReached).toBe(status === "complete");
+      }).pipe(Effect.provide(layerTestCrypto)),
+  );
+
   it.effect("distinguishes sending a selected queued message from resuming queue order", () =>
     Effect.gen(function* () {
       const commands: OrchestrationV2Command[] = [];

@@ -2,6 +2,7 @@ import { useState, useSyncExternalStore, type ComponentProps, type ComponentType
 import type { ExtraProps } from "react-markdown";
 import { normalizeMarkdownLinkDestination } from "@t3tools/shared/markdownLinks";
 import { Button } from "../ui/button";
+import { useRenderedAppearance } from "../../hooks/useTheme";
 
 const STORAGE_KEY = "t3.private-build.automatic-remote-media";
 const CHANGE_EVENT = "t3-remote-media-preference";
@@ -43,7 +44,11 @@ export function withRemoteMediaConsent(RenderImage: ComponentType<MarkdownImageP
   return function RemoteMediaConsent(props: MarkdownImageProps) {
     const automatic = useAutomaticRemoteMedia();
     const [approvedSource, setApprovedSource] = useState<string | null>(null);
-    const localSource = props.node?.properties?.dataLocalSrc;
+    const appearance = useRenderedAppearance();
+    const themeSource =
+      props.node?.properties?.[appearance === "dark" ? "dataDarkSrc" : "dataLightSrc"];
+    const localSource =
+      typeof themeSource === "string" ? themeSource : props.node?.properties?.dataLocalSrc;
     const source = normalizeMarkdownLinkDestination(
       typeof localSource === "string"
         ? localSource

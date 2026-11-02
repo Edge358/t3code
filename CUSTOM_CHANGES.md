@@ -43,8 +43,11 @@ These are candidates for discussion, not assumptions about upstream priorities;
 
 ## Background and scope
 
-Upstream base: T3 Code `v0.1.6`, commit `2359643cffa6ba9ee84d6f2694b935de54a8013e`,
-tagged locally as `private-base-v0.1.6`. This document describes how the variant
+Original upstream base: T3 Code `v0.1.6`, commit `2359643cffa6ba9ee84d6f2694b935de54a8013e`,
+tagged locally as `private-base-v0.1.6`. The maintained source incorporates the full
+upstream snapshot `cbd3e149a130f1d99d2d067c77b9889d64e28755` with the private behavior
+preserved. This source snapshot is separate from the installed private build.
+This document describes how the variant
 behaves now and why. The verification section states the public evidence limits;
 exact artifact hashes and machine-specific records live under ignored `docs/local`
 and `.local`. The privacy review keeps its own dated runtime evidence.
@@ -357,6 +360,10 @@ periodic checks, optional telemetry, and model-manifest update settings. This
 change does not promise every provider request is local or that provider quotas
 are governed by the app. Model use still requires provider connections.
 
+The Claude subscription-usage fallback preserves explicitly named weekly model
+limits, including Fable, from the provider's `limits` response. It uses the returned
+percentage directly and retains general usage when optional entries are unsupported.
+
 The star-request popup is suppressed as a personal preference. The change does
 not remove upstream credit or claim authorship of T3 Code.
 
@@ -377,6 +384,11 @@ require a replacement value before they can be renamed or made plain text.
 
 Log rotation prunes only canonical numbered rotations. Files with similar names,
 such as `debug.log.04` or `debug.log.notes`, remain intact.
+
+ACP provider processes use hidden consoles without detached process groups on
+Windows, where detachment can open a blank console during provider discovery.
+POSIX process-group ownership and Windows PID-based teardown remain in place.
+The Grok discovery and ACP teardown checks cover these launch and cleanup paths.
 
 ## 6. Verification approach
 
@@ -432,6 +444,11 @@ Delete requires confirmation and recursively includes child conversations, inclu
 provider helper agents, side chats, and forks. Provider shutdown precedes cleanup.
 The conversation remains visible with deletion progress; failed cleanup can be
 retried with Delete. New agent work is blocked after a partial deletion.
+
+If the user also requests removal of the thread's separate working folder, the
+client waits for confirmed history-cleanup completion before removing that folder.
+A cleanup failure keeps the folder available for retry. Ordinary thread deletion
+continues to report progress asynchronously.
 
 Deletion failures now explain shared-provider activity, newly discovered helpers,
 unfinished conversation work, or the cleanup step that failed. The banner and
@@ -563,7 +580,7 @@ by clearing that marker.
 
 For the installed app, use its Start Menu or desktop shortcut. The
 [Start Private T3.cmd](Start%20Private%20T3.cmd) launcher in the repository opens
-the separate development copy with retained development data. Read the profile
+the separate development copy using `.local/profile`, creating it if absent. Read the profile
 isolation requirements below before using it for requested development or tests;
 it is not the normal installed-app shortcut.
 
@@ -578,7 +595,8 @@ All paths below are relative to the repository folder:
 
 On this development machine, disposable material blocked from automatic cleanup
 is moved to `../temp/delete` (the parent GitHub folder's `temp/delete` directory).
-Its `CONTENTS.txt` identifies what is awaiting manual deletion. The current app
+The cleanup manifest or bundle's `CONTENTS.txt` identifies what was moved; the
+private build record locates the latest manifest. The current app
 and saved profile do not belong there.
 
 The profile, records, and generated builds are ignored by Git. Committing source
@@ -601,7 +619,8 @@ managers and downloads install upstream T3 Code. The maintainer records exact
 artifact hashes privately, because a reused version number cannot identify a rebuild.
 
 Launch the installed shortcut for acceptance; `Start Private T3.cmd` opens the
-separate development copy and saved test profile instead. Pass
+separate development copy and its own profile instead. It does not import a profile
+from a previous source folder. Pass
 `-BuildDir builds\<name>` to `scripts/start-private.ps1` to open a build that is
 not the current one with the same profile.
 
@@ -643,9 +662,9 @@ preferences and the onboarding marker, so it is not part of normal installation.
 An upstream release number, an upstream code snapshot, and a private build number
 identify different things. New code can exist after a published release without
 changing that release's number. A nightly label identifies a packaged snapshot;
-its exact Git commit ID is the reliable comparison point. A private build includes
-only the upstream changes deliberately adopted, together with this variant's
-customizations.
+its exact Git commit ID is the reliable comparison point. Maintenance now aims to
+incorporate complete upstream snapshots while retaining this variant's intentional
+customizations. The earlier selective updates remain historical build evidence.
 
 Keep the upstream base and each completed review checkpoint under permanent local
 Git labels. The private build record owns the latest reviewed ID, dated label,
@@ -659,24 +678,26 @@ of its actions. Once a review is requested, use the following sequence.
 1. Read the saved review checkpoint and current custom behavior. Check the newer
    upstream commit list, published stable release and nightly labels online first.
    Record the exact candidate ID rather than relying on a moving page or a date.
-2. Prioritize security, data loss, crashes, provider reliability and features used
-   here. Read the actual diffs, discussion and dependencies for plausible candidates;
-   a title alone is not enough to establish a security fix or compatibility.
-3. If local comparison is needed, fetch only reference history into Git and retain
-   the candidate under a distinct local label. Fetching must not change the custom
-   working files. Verify that the previous review ID is an ancestor of the candidate
-   before using the intervening commits as the new review inventory.
-4. Report each relevant candidate as recommended now, deferred or skipped, with its
-   benefit and any conflict with the private changes. Review does not authorize
-   application. Apply selected changes only after the owner's approval.
-5. Review and test the approved adaptations, including affected private behavior.
+2. Keep the unchanged upstream source and history in `t3upstream`, and the
+   maintained custom source and history in `t3code`. Preserve the previous working
+   source/build before integration. Keep a distinct label for each exact candidate.
+   The custom copy's local `upstream` connection points to the sibling `t3upstream`
+   repository; the preserved older custom folder supplies historical evidence only.
+3. Compare the complete upstream update against the custom source and identify
+   overlaps with private behavior. The number of conflicting files measures only
+   textual overlaps, not the size of the update or the amount of review required.
+4. After approval to integrate, combine the complete update using shared history.
+   Resolve overlaps against both the upstream behavior and this document. Keep
+   upstream changes unless they conflict with an intentional private restriction
+   or preference; explain those exceptions instead of silently losing features.
+5. Review and test the integration, including affected private behavior.
    Build into a separate candidate folder, preserve the installed build and fallback,
    and obtain approval before closing the app and installing. Verify installed file
    hashes, backend version and startup; report manual acceptance separately.
-6. Record the review boundary and decisions even when every candidate is declined.
-   Retain a new dated review label only when that inventory review is complete.
-   Downloaded or merely observed changes do not advance the reviewed checkpoint.
-   Rejected changes remain reference history and do not enter later custom builds.
+6. Record the incorporated source ID, exact checks and limits separately from the
+   installed package identity. A successful build does not certify every upstream
+   feature. Keep reproducible test failures distinguishable from private-policy
+   expectations and platform-specific test limitations.
 
 Review labels are permanent. For another completed review on the same day, use
 an unused suffix such as `-02`; never overwrite the earlier label. Keep candidate
@@ -733,6 +754,9 @@ Close the app normally before an authorized installation. After successful
 installation and startup verification, retain the accepted package as current
 and its predecessor as the fallback. Move older packages into the designated
 disposal folder and update their recorded locations.
+Place the accepted complete package in `.local/builds/current` after installation
+verification, moving the previous `current` package into the fallback location first.
+This keeps `Start Private T3.cmd` valid without version-specific launcher edits.
 
 On Windows PowerShell, native tools can write ordinary progress to stderr. When
 capturing build logs, do not treat every stderr line as a terminating failure;

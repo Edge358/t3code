@@ -3,11 +3,19 @@ import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
+import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
+import * as Sink from "effect/Sink";
+import * as Stream from "effect/Stream";
 import { HttpClient, HttpClientResponse } from "effect/http";
+import * as ChildProcess from "effect/process/ChildProcess";
+import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+import * as TestClock from "effect/testing/TestClock";
 import { GrokSettings } from "@t3tools/provider-grok/settings";
 
 import {
@@ -129,9 +137,9 @@ describe("buildGrokModelCapabilities", () => {
         type: "select",
         currentValue: "medium",
         options: [
-          { id: "xhigh", label: "Extra High Effort", isDefault: true },
-          { id: "high", label: "High Effort" },
           { id: "medium", label: "Medium Effort" },
+          { id: "high", label: "High Effort" },
+          { id: "xhigh", label: "Extra High Effort", isDefault: true },
         ],
       },
     ]);
@@ -221,6 +229,68 @@ it.layer(NodeServices.layer)("checkGrokProviderStatus", (it) => {
     }),
   );
 
+  it.effect.each([
+    {
+      label: "answers after 6 s",
+      versionDelay: "6 seconds",
+      version: "1.0.52",
+      message: "Grok CLI is installed but ACP initialize failed. Model options may be incomplete.",
+      probesAfterVersion: true,
+    },
+    {
+      label: "never answers",
+      versionDelay: "Infinity",
+      version: null,
+      message: "Grok CLI is installed but timed out while running `grok --version`.",
+      probesAfterVersion: false,
+    },
+  ] as const)("gives `grok --version` 10 s when it $label", (row) =>
+    Effect.gen(function* () {
+      // A fake CLI runs on wall time, so a stub answers `--version` on the test clock.
+      const spawned: Array<string> = [];
+      const spawner = ChildProcessSpawner.make((command) => {
+        const args = ChildProcess.isStandardCommand(command) ? command.args : [];
+        spawned.push(args.join(" "));
+        if (!args.includes("--version")) {
+          return Effect.fail(
+            PlatformError.systemError({
+              _tag: "PermissionDenied",
+              module: "ChildProcess",
+              method: "spawn",
+              description: "Only `grok --version` is stubbed.",
+            }),
+          );
+        }
+        const handle = ChildProcessSpawner.makeHandle({
+          pid: ChildProcessSpawner.ProcessId(900_000_201),
+          exitCode: Effect.delay(Effect.succeed(ChildProcessSpawner.ExitCode(0)), row.versionDelay),
+          isRunning: Effect.succeed(true),
+          kill: () => Effect.void,
+          unref: Effect.succeed(Effect.void),
+          stdin: Sink.drain,
+          stdout: Stream.encodeText(
+            Stream.fromEffect(Effect.delay(Effect.succeed("grok 1.0.52\n"), row.versionDelay)),
+          ),
+          stderr: Stream.empty,
+          all: Stream.empty,
+          getInputFd: () => Sink.drain,
+          getOutputFd: () => Stream.empty,
+        });
+        return Effect.succeed(handle);
+      });
+      const fiber = yield* checkGrokProviderStatus(decodeGrokSettings({ enabled: true }), {}).pipe(
+        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        Effect.forkChild,
+      );
+      yield* TestClock.adjust("10 seconds");
+      const snapshot = yield* Fiber.join(fiber);
+      expect(snapshot.installed).toBe(true);
+      expect(snapshot.version).toBe(row.version);
+      expect(snapshot.message).toBe(row.message);
+      expect(spawned.length > 1).toBe(row.probesAfterVersion);
+    }),
+  );
+
   // A stand-in for the Grok CLI: `--version` and `models` print canned text,
   // and `agent stdio` execs the mock ACP agent so `initialize` returns model metadata.
   // A list of `models` outputs is served in call order, repeating the last one.
@@ -267,6 +337,15 @@ it.layer(NodeServices.layer)("checkGrokProviderStatus", (it) => {
 
   it.effect("reports ready with ACP-discovered models without running startup updates", () =>
     Effect.gen(function* () {
+      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+      const hostPlatform = yield* HostProcess.Platform;
+      const hiddenSpawner = ChildProcessSpawner.make((command) => {
+        if (ChildProcess.isStandardCommand(command) && command.options.detached !== undefined) {
+          expect(command.options.windowsHide).toBe(true);
+          if (hostPlatform === "win32") expect(command.options.detached).toBe(false);
+        }
+        return spawner.spawn(command);
+      });
       const environment = { ...process.env, XAI_API_KEY: "", GROK_DISABLE_AUTOUPDATER: "0" };
       const { snapshot, updateRan } = yield* Effect.scoped(
         Effect.gen(function* () {
@@ -281,7 +360,7 @@ it.layer(NodeServices.layer)("checkGrokProviderStatus", (it) => {
           const snapshot = yield* checkGrokProviderStatus(
             decodeGrokSettings({ enabled: true, binaryPath: grokPath }),
             environment,
-          );
+          ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, hiddenSpawner));
           return { snapshot, updateRan: yield* fs.exists(updateLogPath) };
         }),
       );

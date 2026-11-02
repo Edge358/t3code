@@ -3,6 +3,7 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { readOAuthLogin, withClaudeHeaders } from "./claudeResetCredits.ts";
@@ -11,6 +12,17 @@ const Window = Schema.Struct({
   utilization: Schema.NullOr(Schema.Finite),
   resets_at: Schema.NullOr(Schema.String),
 });
+const decodeModelLimit = Schema.decodeUnknownOption(
+  Schema.Struct({
+    kind: Schema.Literal("weekly_scoped"),
+    percent: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)),
+    resets_at: Schema.NullOr(Schema.String),
+    scope: Schema.Struct({
+      model: Schema.Struct({ display_name: Schema.NonEmptyString }),
+      surface: Schema.Null,
+    }),
+  }),
+);
 const PlanUsage = Schema.Struct({
   five_hour: Schema.optionalKey(Schema.NullOr(Window)),
   seven_day: Schema.optionalKey(Schema.NullOr(Window)),
@@ -26,6 +38,7 @@ const PlanUsage = Schema.Struct({
   ),
   // The existing usage mapper validates this optional budget separately.
   spend: Schema.optionalKey(Schema.Unknown),
+  limits: Schema.optionalKey(Schema.Unknown),
 });
 
 export type ClaudePlanUsageResult =
@@ -78,14 +91,27 @@ export const readClaudePlanUsage = Effect.fn("readClaudePlanUsage")(
       return { message } satisfies ClaudePlanUsageResult;
     }
     const body = yield* HttpClientResponse.schemaBodyJson(PlanUsage)(response);
-    if (!("five_hour" in body || "seven_day" in body || "extra_usage" in body || "spend" in body)) {
+    const modelScoped = (Array.isArray(body.limits) ? body.limits : [])
+      .flatMap((entry) => Option.toArray(decodeModelLimit(entry)))
+      .filter((entry) => entry.scope.model.display_name.trim().length > 0)
+      .map((entry) => ({
+        display_name: entry.scope.model.display_name.trim(),
+        utilization: entry.percent,
+        resets_at: entry.resets_at,
+      }));
+    if (
+      !("five_hour" in body || "seven_day" in body || "extra_usage" in body || "spend" in body) &&
+      modelScoped.length === 0
+    ) {
       return {
         message: "Claude returned an unrecognized limits response.",
       } satisfies ClaudePlanUsageResult;
     }
-    // Do not guess model-scoped names from undocumented endpoint fields.
     return {
-      usage: { rate_limits_available: true, rate_limits: body },
+      usage: {
+        rate_limits_available: true,
+        rate_limits: { ...body, model_scoped: modelScoped },
+      },
     } satisfies ClaudePlanUsageResult;
   },
   Effect.timeout("5 seconds"),

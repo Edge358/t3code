@@ -44,9 +44,9 @@ import {
   readThreadShells,
 } from "../state/entities";
 import { useUiStateStore } from "../uiStateStore";
-import { clearThreadPreviewState } from "../previewStateStore";
 import { useDiffPanelStore } from "../diffPanelStore";
 import { usePreviewMiniPlayerStore } from "../previewMiniPlayerStore";
+import { clearThreadPreviewState } from "../previewStateStore";
 import { useRightPanelStore } from "../rightPanelStore";
 import { useTerminalUiStateStore } from "../terminalUiStateStore";
 import { buildThreadRouteParams, resolveThreadRouteRef } from "../threadRoutes";
@@ -243,15 +243,15 @@ export function useAcknowledgeThreadWoke() {
 // These Undos restore a thread's place in the list, which archiving or deleting it ends.
 const LIST_PLACEMENT_UNDO_KINDS = ["settle", "snooze", "pin"];
 
+function expireThreadUndos(target: ScopedThreadRef, kinds: readonly string[]) {
+  for (const kind of kinds) ThreadUndo.invalidate(kind, scopedThreadKey(target));
+}
+
 function clearDeletedThreadPanelState(ref: ScopedThreadRef) {
   clearThreadPreviewState(ref);
   useRightPanelStore.getState().removeThread(ref);
   useDiffPanelStore.getState().removeThread(ref);
   usePreviewMiniPlayerStore.getState().removeThread(ref);
-}
-
-function expireThreadUndos(target: ScopedThreadRef, kinds: readonly string[]) {
-  for (const kind of kinds) ThreadUndo.invalidate(kind, scopedThreadKey(target));
 }
 
 /** A No project thread that already has its own folder, on a server that can promote it. */
@@ -564,7 +564,7 @@ export function useThreadActions() {
 
     const deleteResult = await deleteThreadMutation({
       environmentId: threadRef.environmentId,
-      input: { threadId: threadRef.threadId },
+      input: { threadId: threadRef.threadId, awaitCompletion: shouldDeleteWorktree },
     });
     if (deleteResult._tag === "Failure") {
       return deleteResult;

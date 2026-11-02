@@ -32,8 +32,11 @@ import { derivePendingBackgroundWork } from "@t3tools/shared/orchestrationV2Pend
 import { visibleThreadPullRequests } from "@t3tools/shared/threadPullRequests";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 
-import { getInitialServerConfig, request } from "../rpc/client.ts";
+import { getInitialServerConfig, request, subscribe } from "../rpc/client.ts";
 
 interface CommandMetadata {
   readonly commandId?: CommandId;
@@ -87,7 +90,14 @@ export interface ThreadCommandInput extends CommandMetadata {
 export interface DeleteThreadInput extends ThreadCommandInput {
   /** The server deletes only a thread with no runs and no messages. */
   readonly onlyIfUnused?: boolean;
+  /** Wait for cleanup before a caller removes the conversation's workspace. */
+  readonly awaitCompletion?: boolean;
 }
+
+export class ThreadDeletionIncompleteError extends Schema.TaggedError<ThreadDeletionIncompleteError>()(
+  "ThreadDeletionIncompleteError",
+  { message: Schema.String },
+) {}
 export type ArchiveThreadInput = ThreadCommandInput;
 export type UnarchiveThreadInput = ThreadCommandInput;
 export type SettleThreadInput = ThreadCommandInput;
@@ -430,12 +440,47 @@ function simpleThreadCommand(
 export const deleteThread = Effect.fn("EnvironmentCommands.deleteThread")(function* (
   input: DeleteThreadInput,
 ) {
-  return yield* dispatch({
+  const receipt = yield* dispatch({
     type: "thread.delete",
     commandId: yield* allocateCommandId(input),
     threadId: input.threadId,
     ...(input.onlyIfUnused === undefined ? {} : { onlyIfUnused: input.onlyIfUnused }),
   });
+  if (input.awaitCompletion) {
+    const completed = yield* subscribe(ORCHESTRATION_V2_WS_METHODS.subscribeThread, {
+      threadId: input.threadId,
+      acceptBoundedSnapshot: true,
+    }).pipe(
+      Stream.mapEffect((item) => {
+        const thread =
+          item.kind === "snapshot"
+            ? item.projection.thread
+            : item.kind === "event" &&
+                (item.event.type === "thread.deleted" ||
+                  item.event.type === "thread.metadata-updated")
+              ? item.event.payload
+              : undefined;
+        if (thread?.historyDeletion?.status === "failed") {
+          return Effect.fail(
+            new ThreadDeletionIncompleteError({
+              message:
+                thread.historyDeletion.message ??
+                "Conversation cleanup failed. The working folder was kept.",
+            }),
+          );
+        }
+        return Effect.succeed(thread?.deletedAt != null);
+      }),
+      Stream.filter(Boolean),
+      Stream.runHead,
+    );
+    if (Option.isNone(completed)) {
+      return yield* new ThreadDeletionIncompleteError({
+        message: "Conversation cleanup was not confirmed. The working folder was kept.",
+      });
+    }
+  }
+  return receipt;
 });
 
 export type CloseGuestShareInput = ThreadCommandInput;

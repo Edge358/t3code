@@ -143,6 +143,16 @@ it.layer(NodeServices.layer)("private Claude plan usage", (it) => {
             Response.json({
               five_hour: null,
               seven_day: { utilization: 27, resets_at: "2026-11-04T00:00:00Z" },
+              limits: [
+                { kind: "weekly_all", percent: 27, resets_at: null, scope: null },
+                {
+                  kind: "weekly_scoped",
+                  percent: 24,
+                  resets_at: "2026-11-04T00:00:00Z",
+                  scope: { model: { id: null, display_name: "Fable" }, surface: null },
+                  is_active: true,
+                },
+              ],
               spend: {
                 enabled: true,
                 used: { amount_minor: 25, currency: "USD", exponent: 2 },
@@ -161,7 +171,96 @@ it.layer(NodeServices.layer)("private Claude plan usage", (it) => {
         });
         expect(mapped.limits.windows.map((w) => [w.id, w.usedPercent])).toEqual([
           ["seven_day", 27],
+          ["seven_day_fable", 24],
           ["monthly_spend", 25],
+        ]);
+        expect(mapped.names.overageIncluded).toBe("Fable");
+        expect(mapped.limits.windows[1]).toMatchObject({
+          label: "Weekly · Fable",
+          resetsAt: "2026-11-04T00:00:00.000Z",
+        });
+      }
+    }),
+  );
+
+  it.effect.each([
+    { percent: 0, active: false },
+    { percent: 100, active: true },
+  ])("reads a scoped-only response at $percent percent", ({ percent, active }) =>
+    Effect.gen(function* () {
+      const result = yield* read(
+        yield* login("selected"),
+        HttpClient.make((request) =>
+          Effect.succeed(
+            HttpClientResponse.fromWeb(
+              request,
+              Response.json({
+                limits: [
+                  {
+                    kind: "weekly_scoped",
+                    percent,
+                    resets_at: null,
+                    scope: { model: { display_name: "Fable" }, surface: null },
+                    is_active: active,
+                  },
+                ],
+              }),
+            ),
+          ),
+        ),
+      );
+      expect("usage" in result).toBe(true);
+      if ("usage" in result) {
+        const { limits } = claudeUsageResponseToLimits({
+          checkedAt: "2026-11-02T00:00:00Z",
+          response: result.usage,
+        });
+        expect(limits.windows).toEqual([
+          expect.objectContaining({ id: "seven_day_fable", usedPercent: percent }),
+        ]);
+      }
+    }),
+  );
+
+  it.effect.each([
+    null,
+    {},
+    [null, { kind: "weekly_scoped", percent: "wrong" }],
+    [
+      {
+        kind: "weekly_scoped",
+        percent: 24,
+        resets_at: null,
+        scope: { model: { display_name: "Fable" }, surface: "cowork" },
+      },
+      {
+        kind: "weekly_scoped",
+        percent: 24,
+        resets_at: null,
+        scope: { model: { display_name: " " }, surface: null },
+      },
+    ],
+  ])("keeps general usage when scoped entries are unsupported", (limits) =>
+    Effect.gen(function* () {
+      const result = yield* read(
+        yield* login("selected"),
+        HttpClient.make((request) =>
+          Effect.succeed(
+            HttpClientResponse.fromWeb(
+              request,
+              Response.json({ seven_day: { utilization: 13, resets_at: null }, limits }),
+            ),
+          ),
+        ),
+      );
+      expect("usage" in result).toBe(true);
+      if ("usage" in result) {
+        const mapped = claudeUsageResponseToLimits({
+          checkedAt: "2026-11-02T00:00:00Z",
+          response: result.usage,
+        });
+        expect(mapped.limits.windows).toEqual([
+          expect.objectContaining({ id: "seven_day", usedPercent: 13 }),
         ]);
       }
     }),

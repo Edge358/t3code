@@ -23,6 +23,7 @@ import * as Semaphore from "effect/Semaphore";
 import * as HttpClient from "effect/http/HttpClient";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
+import * as DesktopManagedPolicy from "../app/DesktopManagedPolicy.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopConfig from "../app/DesktopConfig.ts";
 import * as DesktopNetworkInterfaces from "./DesktopNetworkInterfaces.ts";
@@ -483,6 +484,18 @@ export const make = Effect.gen(function* () {
 
   const readNetworkInterfaces = networkInterfaces.read;
 
+  // The server refuses to bind wider than the policy's clients allow, so network access or Serve
+  // saved before the policy would keep the backend from starting. The backend runs without them;
+  // the saved choice stays for when the policy allows it.
+  const remoteAllowed = yield* (yield* DesktopManagedPolicy.DesktopManagedPolicy).read.pipe(
+    Effect.map((found) => found?.document.limits?.clients?.includes("remote") ?? true),
+    Effect.orElseSucceed(() => false),
+  );
+  const withinPolicy = (settings: DesktopAppSettings.DesktopSettings) =>
+    remoteAllowed
+      ? settings
+      : { ...settings, serverExposureMode: "local-only" as const, tailscaleServeEnabled: false };
+
   const readCurrentState = (currentNetworkInterfaces: DesktopNetworkInterfaces.NetworkInterfaces) =>
     Ref.get(stateRef).pipe(
       Effect.map((state) =>
@@ -502,8 +515,8 @@ export const make = Effect.gen(function* () {
       const settings = yield* desktopSettings.get;
       const currentNetworkInterfaces = yield* readNetworkInterfaces;
       const resolved = resolveRuntimeState({
-        requestedMode: settings.serverExposureMode,
-        settings,
+        requestedMode: withinPolicy(settings).serverExposureMode,
+        settings: withinPolicy(settings),
         port,
         networkInterfaces: currentNetworkInterfaces,
         advertisedHostOverride: config.desktopLanHostOverride,
@@ -526,8 +539,8 @@ export const make = Effect.gen(function* () {
     };
     const currentNetworkInterfaces = yield* readNetworkInterfaces;
     const resolved = resolveRuntimeState({
-      requestedMode: mode,
-      settings: nextSettings,
+      requestedMode: withinPolicy(nextSettings).serverExposureMode,
+      settings: withinPolicy(nextSettings),
       port: previous.port,
       networkInterfaces: currentNetworkInterfaces,
       advertisedHostOverride: config.desktopLanHostOverride,
@@ -579,7 +592,7 @@ export const make = Effect.gen(function* () {
       const nextState = yield* Ref.updateAndGet(stateRef, (current) => ({
         ...current,
         tailscaleServeEnabled:
-          privateBuildPolicy.cloudServices && result.settings.tailscaleServeEnabled,
+          privateBuildPolicy.cloudServices && withinPolicy(result.settings).tailscaleServeEnabled,
         tailscaleServePort: result.settings.tailscaleServePort,
       }));
 
