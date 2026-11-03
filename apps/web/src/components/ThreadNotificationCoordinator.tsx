@@ -17,7 +17,7 @@ import {
   ShieldQuestionIcon,
 } from "lucide-react";
 
-import { speakCompletedReply } from "../replySpeech";
+import { createReplySpeechObserver } from "../replySpeech";
 import { getClientSettings, subscribeClientSettings } from "../hooks/useSettings";
 import { isWindowsPlatform } from "../lib/utils";
 import { environmentSummaries } from "../state/presentation";
@@ -53,6 +53,7 @@ interface WatchedEnvironment {
   previous: Map<ThreadId, NotificationState>;
   reconnecting: boolean;
   readonly gate: ReturnType<typeof createThreadNotificationGate<ThreadId>>;
+  readonly speech: ReturnType<typeof createReplySpeechObserver>;
 }
 
 /**
@@ -128,24 +129,6 @@ export function startThreadNotifications(
       environmentId?: string;
       threadId?: string;
     };
-    if (kind === "completion") {
-      void speakCompletedReply(
-        registry,
-        environmentId,
-        state.raw,
-        active.environmentId === environmentId && active.threadId === thread.id,
-        () =>
-          watched.get(environmentId)?.previous.get(thread.id)?.raw.latestRunId ===
-          state.raw.latestRunId,
-      ).catch(() => {
-        toastManager.add({
-          type: "warning",
-          title: "Reply could not be read aloud",
-          description:
-            "Your reply is saved. Check the speech service in Chat settings. Speech is not retried automatically.",
-        });
-      });
-    }
     const { notificationMode: mode, inAppNotificationsEnabled } = getClientSettings();
     const title =
       kind === "completion"
@@ -295,6 +278,7 @@ export function startThreadNotifications(
     }
     entry.reconnecting = false;
     entry.previous = next;
+    entry.speech.sync(Array.from(next.values(), (state) => state.raw));
     entry.gate.retain(new Set(next.keys()));
     for (const [prior, state] of changed) {
       entry.gate.observe(state.thread.id, prior, state, {
@@ -309,6 +293,22 @@ export function startThreadNotifications(
       previous: new Map(),
       reconnecting: false,
       unsubscribe: () => {},
+      speech: createReplySpeechObserver(
+        registry,
+        environmentId,
+        () => {
+          toastManager.add({
+            type: "warning",
+            title: "Reply could not be read aloud",
+            description:
+              "Your reply is saved. Check the speech service in Chat settings. Speech is not retried automatically.",
+          });
+        },
+        (threadId) =>
+          !registry
+            .get(environmentThreadShells.hiddenThreadKeysAtom)
+            .has(threadKey({ environmentId, threadId })),
+      ),
       gate: createThreadNotificationGate<ThreadId>((threadId, kind) => {
         const state = entry.previous.get(threadId);
         if (state) present(environmentId, state, kind);
@@ -346,6 +346,7 @@ export function startThreadNotifications(
       unsubscribeRequests();
       unsubscribeDelegated();
       entry.gate.clear();
+      entry.speech.dispose();
     };
     return entry;
   };
@@ -365,6 +366,14 @@ export function startThreadNotifications(
     }
     for (const environmentId of environmentIds) {
       if (!watched.has(environmentId)) watched.set(environmentId, watchEnvironment(environmentId));
+      else {
+        const entry = watched.get(environmentId)!;
+        observeThreads(
+          environmentId,
+          entry,
+          Array.from(entry.previous.values(), (state) => state.raw),
+        );
+      }
     }
   };
 
@@ -424,7 +433,10 @@ export function startThreadNotifications(
     },
   );
   const unsubscribeHidden = [
-    registry.subscribe(environmentThreadShells.hiddenThreadKeysAtom, closeHiddenPending),
+    registry.subscribe(environmentThreadShells.hiddenThreadKeysAtom, () => {
+      closeHiddenPending();
+      syncEnvironments();
+    }),
     registry.subscribe(environmentThreadShells.anyEnvironmentHidingAtom, closeHiddenPending),
     registry.subscribe(environmentThreadShells.threadRefsAtom, closeHiddenPending),
   ];

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 import { render } from "../../test/render";
+import { installDesktopMouseNavigationGuard } from "../desktopMouseNavigation";
 
 const state = vi.hoisted(() => ({ navigate: vi.fn() }));
 
@@ -47,6 +48,7 @@ describe("usage toggle shortcut on Usage", () => {
     vi.clearAllMocks();
     using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
     await using screen = await render(null, { router: "/usage" });
+    using _mouseGuard = { [Symbol.dispose]: installDesktopMouseNavigationGuard(window) };
     using _commands = { [Symbol.dispose]: registerNavigationHistoryCommands(screen.router!) };
 
     using back = vi.spyOn(window.history, "back").mockImplementation(() => undefined);

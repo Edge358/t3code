@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 import { act, render } from "../../test/render";
+import { installDesktopMouseNavigationGuard } from "../desktopMouseNavigation";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn<(target: unknown, handlers: PreviewStreamEvents) => unknown>(),
@@ -162,6 +163,7 @@ describe("ServerBrowserSurface history", () => {
     setup();
     const { screen, input } = await renderSurface("you");
     await using _screen = screen;
+    using _mouseGuard = { [Symbol.dispose]: installDesktopMouseNavigationGuard(window) };
     const canvas = input.closest("[data-server-browser-surface]")!.querySelector("canvas")!;
 
     expect(mouseUp(canvas, 3).defaultPrevented).toBe(true);

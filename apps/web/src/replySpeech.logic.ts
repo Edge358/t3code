@@ -1,9 +1,9 @@
 import type { OrchestrationV2ThreadProjection, RunId } from "@t3tools/contracts";
 
-/** Select only this completed run's main reply, never history, tools or child-agent messages. */
-export function completedReply(projection: OrchestrationV2ThreadProjection, runId: RunId) {
+/** A finished main message is speakable before the run finishes its remaining work. */
+export function completedReplyMessages(projection: OrchestrationV2ThreadProjection, runId: RunId) {
   const run = projection.runs.find((candidate) => candidate.id === runId);
-  if (!run || run.status !== "completed") return null;
+  if (!run || !["running", "waiting", "completed"].includes(run.status)) return [];
   const replyNodes = new Set(
     projection.nodes
       .filter(
@@ -24,14 +24,26 @@ export function completedReply(projection: OrchestrationV2ThreadProjection, runI
         replyNodes.has(message.nodeId)) &&
       !message.notification,
   );
-  const text = messages
-    .map((message) => message.text.trim())
-    .filter(Boolean)
-    .join("\n\n");
-  if (!text) return null;
   const driver = projection.providerThreads.find(
     (thread) => thread.id === run.providerThreadId,
   )?.driver;
   const source = driver === "codex" ? "codex" : driver === "claudeAgent" ? "claude" : "t3code";
-  return { text, source } as const;
+  return messages.flatMap((message) => {
+    const text = message.text.trim();
+    return text ? [{ id: message.id, text, source } as const] : [];
+  });
+}
+
+export function createReplySpeechGate(skipExisting: boolean) {
+  const handled = new Set<string>();
+  return {
+    observe(projection: OrchestrationV2ThreadProjection, runId: RunId, enabled = true) {
+      const messages = completedReplyMessages(projection, runId);
+      const fresh = messages.filter((message) => !handled.has(message.id));
+      for (const message of fresh) handled.add(message.id);
+      const result = skipExisting || !enabled ? [] : fresh;
+      skipExisting = false;
+      return result;
+    },
+  };
 }

@@ -24,6 +24,7 @@ import { startGuideRunNotifications } from "./components/pullRequest/guide/PullR
 import { APP_BASE_NAME, APP_DISPLAY_NAME, APP_STAGE_LABEL } from "./branding";
 import { resolveServerBackedAppDisplayName } from "./branding.logic";
 import { isElectron } from "./env";
+import { installDesktopMouseNavigationGuard } from "./desktopMouseNavigation";
 import {
   subscribeComposerDraftModelReconciliation,
   subscribeDraftThreadPromotion,
@@ -219,7 +220,10 @@ export function startAppServices(): AppRouter {
   startPermissionUpdateNotices(router);
   startThreadNotifications(appAtomRegistry, router);
   startGuideRunNotifications(appAtomRegistry, router);
-  if (isElectron) startDesktopUpdateLaunchNotice();
+  if (isElectron) {
+    installDesktopMouseNavigationGuard(window);
+    startDesktopUpdateLaunchNotice();
+  }
 
   return router;
 }

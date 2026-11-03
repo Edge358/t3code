@@ -234,6 +234,20 @@ updated in [keybindings](docs/user/keybindings.md) and
 the chooser with no projects. Folder browsing and chooser order were also
 checked in packaged builds.
 
+### Dictation mouse buttons
+
+The desktop main window cancels mouse Back/Forward defaults, including an isolated
+button release. This protects conversation navigation when a dictation tool consumes
+the press but lets the release through. Intentional side-button history navigation
+in the main window is also disabled. Keyboard history, explicit navigation controls,
+ordinary mouse input and the preview browser's own history remain available.
+This is a T3 safeguard; it does not repair an external tool's mouse interception.
+
+Implementation: [desktopMouseNavigation.ts](apps/web/src/desktopMouseNavigation.ts).
+Focused tests cover isolated releases and listener cleanup; existing preview and
+keyboard browser tests also run with the guard installed. Native mouse acceptance
+is recorded separately in the private build record.
+
 ## 3. Changed settings defaults
 
 These defaults apply when a saved field is absent, including an older profile
@@ -278,8 +292,9 @@ preference. Sources: [settings.ts](packages/contracts/src/settings.ts),
 ## 4. Optional read-aloud integration
 
 Settings > Chat contains Read replies aloud, Speech service address, and Test
-speech. It sends completed assistant reply text to an existing compatible speech
-queue. It does not install a speech engine, provide speech recognition, or make
+speech. It sends each finished main assistant message as a separate item to an
+existing compatible speech queue, while the agent can continue working. The final
+answer is a separate item too. It does not install a speech engine, provide speech recognition, or make
 every installed TTS product compatible automatically.
 
 Fresh defaults are off and blank. Editing the address switches automatic speech
@@ -296,7 +311,7 @@ POST JSON to the exact configured queue URL:
 {
   "text": "Completed assistant reply",
   "source": "codex",
-  "session": "opaque-conversation-and-run-id"
+  "session": "opaque-environment-thread-run-message-id"
 }
 ```
 
@@ -313,17 +328,25 @@ a guarantee that speech stays on the local network. The app does not automatical
 retry uncertain delivery. The IPC payload has text/session length limits and no
 destination field, but the renderer can change the saved speech address.
 
-Speech selects completed main assistant messages for that run, excluding user,
-tool, child-agent, streaming, and notification messages. Previously completed
-history is not replayed on startup. Completion handling works independently of
-visual notification preferences and rechecks settings/current run before sending.
-This is an app completion integration, not screen scraping. Web/mobile speech
-transport is not implemented.
+Speech selects finished main assistant messages, excluding user, tool, child-agent,
+still-streaming and notification messages. Already finished history is not replayed
+on startup or when speech is enabled. Each message is attempted once; completion
+and reconnection do not repeat it. Delivery acknowledgements are serialized so a
+slow request does not reorder the speech queue. A queued follow-up does not discard
+the current run's final answer. Hidden/archived threads and stopped runs remain quiet.
+Settings and thread eligibility are checked again before delivery. This works
+independently of visual notification preferences. Web/mobile speech transport is
+not implemented.
+
+Skipping belongs to the external queue and its controls. The existing queue
+advances one item when RememberThisPlease's F9 or X1 action stops current playback.
+Sending messages separately preserves those boundaries without changing either
+RememberThisPlease or the speech service. Other services need their own skip controls.
 
 Sources: [replySpeech.ts](apps/desktop/src/app/replySpeech.ts),
 [speech IPC](apps/desktop/src/ipc/methods/replySpeech.ts),
 [reply selection](apps/web/src/replySpeech.logic.ts),
-[web coordination](apps/web/src/replySpeech.ts),
+[web coordination](apps/web/src/replySpeech.ts) and its [delivery tests](apps/web/src/replySpeech.test.ts),
 [ThreadNotificationCoordinator.tsx](apps/web/src/components/ThreadNotificationCoordinator.tsx),
 [ReplySpeechSettings.tsx](apps/web/src/components/settings/ReplySpeechSettings.tsx),
 contracts IPC, desktop channels/preload/handlers.
@@ -434,8 +457,10 @@ complete purge and no saved conversations/messages remaining. Unrelated-thread
 navigation and file/content-search Back have automated coverage; they were not
 separately reported in that manual check. That latest check had no before snapshot
 of native histories, so it adds no independent native-file deletion proof.
-Speech was tested in earlier builds; it was not replayed as part of this latest
-acceptance. Other-machine installation and broader live scenarios remain unverified.
+That deletion acceptance did not recheck speech. The later mouse-navigation and
+per-message speech changes passed focused checks and were accepted on the
+maintainer's installed desktop. Other-machine installation and broader live scenarios
+remain unverified.
 
 Exact build identities, per-build results, network captures, and the history of
 fixes are kept in the private build record under `docs/local`, which is ignored
@@ -526,7 +551,7 @@ limited review capacity, focused scope, and prior discussion for product changes
 | [Clickable Close and Back](#clickable-menu-dismissal)                                                                        | Footer shortcut hints now also work with a mouse; search Back preserves the parent query.                                                                    | Broader command-menu redesign and unrelated navigation changes.                                                                         |
 | [Explicit remote-image loading](docs/custom-build/privacy-review.md#findings-and-changes)                                    | Rendering a reply can contact an image host; consent gates loading.                                                                                          | Fixed removal of analytics/cloud features.                                                                                              |
 | [Skip identity reads when reporting is disabled](docs/custom-build/privacy-review.md#findings-and-changes)                   | Turning off reporting should also avoid unnecessary identity collection.                                                                                     | Hard-coded private-build policy.                                                                                                        |
-| [Optional speech queue](#4-optional-read-aloud-integration)                                                                  | Completed replies can be sent to an existing speech service.                                                                                                 | Personal adapters are not bundled; portability needs review.                                                                            |
+| [Optional speech queue](#4-optional-read-aloud-integration)                                                                  | Individual finished assistant messages can be sent to an existing speech service while work continues.                                                       | Personal adapters are not bundled; portability needs review.                                                                            |
 | [Windows symlink test guards](#6-verification-approach)                                                                      | Hosts without symlink privileges fail during fixture setup; use the existing capability probe.                                                               | Retain real link validation on capable hosts.                                                                                           |
 | [Less prominent placeholder](#1-readability-and-appearance)                                                                  | Hint text can resemble entered text at large sizes; lower its opacity.                                                                                       | Other typography choices.                                                                                                               |
 | [Claude subscription usage fallback](docs/custom-build/privacy-review.md#later-claude-limits-diagnosis-private13-2026-10-31) | The CLI can omit usage under its optional-traffic restriction; a bounded first-party fallback restores limits and explains expired login/Keychain limits.    | Private telemetry policy; supported auth modes and provider schema need review.                                                         |
