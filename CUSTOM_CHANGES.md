@@ -44,9 +44,11 @@ These are candidates for discussion, not assumptions about upstream priorities;
 ## Background and scope
 
 Original upstream base: T3 Code `v0.1.6`, commit `2359643cffa6ba9ee84d6f2694b935de54a8013e`,
-tagged locally as `private-base-v0.1.6`. The maintained source incorporates the full
-upstream snapshot `cbd3e149a130f1d99d2d067c77b9889d64e28755` with the private behavior
-preserved. This source snapshot is separate from the installed private build.
+tagged locally as `private-base-v0.1.6`. The maintained source incorporates later
+upstream updates with the private behavior preserved. The local
+[build record](docs/local/T3Code_Private_Build_Record.md#upstream-comparison-checkpoint)
+owns the current incorporated upstream snapshot, separately from the installed
+private build. Use that snapshot when identifying the remaining custom differences.
 This document describes how the variant
 behaves now and why. The verification section states the public evidence limits;
 exact artifact hashes and machine-specific records live under ignored `docs/local`
@@ -114,6 +116,10 @@ controls disappear immediately on close instead of fading beside their replaceme
 The thread-details card starts closed. Collapsing or reopening the left sidebar
 does not open it. Its titlebar toggle remains available, and an explicitly opened
 inline card is remembered per thread across restarts. Popovers are not restored.
+
+The following model-marker and terminal improvements are supplied by the
+incorporated upstream code. They are useful existing behavior, not additional
+private changes to reapply during an update.
 
 Model and effort changes appear above the message where the change took effect,
 including queued messages promoted to Steer. Web, desktop and mobile share the
@@ -527,18 +533,21 @@ limited review capacity, focused scope, and prior discussion for product changes
 | [Complete local conversation deletion](#synchronized-local-conversation-deletion)                                            | Include descendants, owned server content/logs/checkpoints and unshared Codex/Claude histories, with durable progress, retry and shared-resource protection. | Always-confirm is a preference. Codex's undeclared ancestor filter needs schema work. Unsupported/cloud histories remain outside scope. |
 | [Claude home behind a junction](apps/server/src/claudeHistoryDeletion.ts)                                                    | Resolve the real home first so redirected Windows profiles work while links inside history folders remain guarded.                                           | Small focused fix, with tests beside the source.                                                                                        |
 | [Desktop profile override](#launch-folders-and-cleanup)                                                                      | `T3CODE_DESKTOP_APP_DATA` isolates the Electron profile without redirecting every child's APPDATA.                                                           | Local launcher scripts and directory layout.                                                                                            |
-| [Windows check:changed compatibility](#6-verification-approach)                                                              | The script invokes a global vp absent from this pnpm-only setup.                                                                                             | This is a recorded tooling issue with a manual workaround, not an implemented portability fix.                                          |
 
 Automatic-settle defaults, cleanup retention, suppressed promotion, and fixed
 privacy restrictions are local preferences. They need not accompany a useful
 readability or reliability proposal. A PR is a request to merge a selected change;
 a fork is a separately maintained copy. Neither is required to keep this record.
 
-For a source review, compare this checkout against the preserved base:
+For a source review, take the current incorporated upstream ID from the
+[build record](docs/local/T3Code_Private_Build_Record.md#upstream-comparison-checkpoint).
+Replace the placeholder below with that ID. This comparison identifies our
+remaining changes; comparing against the original v0.1.6 release also includes
+upstream improvements already incorporated here.
 
 ```powershell
-git log --oneline private-base-v0.1.6..HEAD
-git diff private-base-v0.1.6 -- apps/web/src/hooks/useThreadActions.ts
+$upstreamBaseline = '<incorporated-upstream-id>'
+git diff $upstreamBaseline -- apps/web/src/hooks/useThreadActions.ts
 git status --short
 ```
 
@@ -659,56 +668,10 @@ preferences and the onboarding marker, so it is not part of normal installation.
 
 ### Reviewing newer upstream changes
 
-An upstream release number, an upstream code snapshot, and a private build number
-identify different things. New code can exist after a published release without
-changing that release's number. A nightly label identifies a packaged snapshot;
-its exact Git commit ID is the reliable comparison point. Maintenance now aims to
-incorporate complete upstream snapshots while retaining this variant's intentional
-customizations. The earlier selective updates remain historical build evidence.
-
-Keep the upstream base and each completed review checkpoint under permanent local
-Git labels. The private build record owns the latest reviewed ID, dated label,
-decisions and installed package identity. A saved review checkpoint records the
-change inventory considered, not a claim that every change was deeply reviewed,
-adopted or tested.
-
-Reading this procedure alone does not request an update review or authorize any
-of its actions. Once a review is requested, use the following sequence.
-
-1. Read the saved review checkpoint and current custom behavior. Check the newer
-   upstream commit list, published stable release and nightly labels online first.
-   Record the exact candidate ID rather than relying on a moving page or a date.
-2. Keep the unchanged upstream source and history in `t3upstream`, and the
-   maintained custom source and history in `t3code`. Preserve the previous working
-   source/build before integration. Keep a distinct label for each exact candidate.
-   The custom copy's local `upstream` connection points to the sibling `t3upstream`
-   repository; the preserved older custom folder supplies historical evidence only.
-3. Compare the complete upstream update against the custom source and identify
-   overlaps with private behavior. The number of conflicting files measures only
-   textual overlaps, not the size of the update or the amount of review required.
-4. After approval to integrate, combine the complete update using shared history.
-   Resolve overlaps against both the upstream behavior and this document. Keep
-   upstream changes unless they conflict with an intentional private restriction
-   or preference; explain those exceptions instead of silently losing features.
-5. Review and test the integration, including affected private behavior.
-   Build into a separate candidate folder, preserve the installed build and fallback,
-   and obtain approval before closing the app and installing. Verify installed file
-   hashes, backend version and startup; report manual acceptance separately.
-6. Record the incorporated source ID, exact checks and limits separately from the
-   installed package identity. A successful build does not certify every upstream
-   feature. Keep reproducible test failures distinguishable from private-policy
-   expectations and platform-specific test limitations.
-
-Review labels are permanent. For another completed review on the same day, use
-an unused suffix such as `-02`; never overwrite the earlier label. Keep candidate
-labels distinct from completed-review labels and record each full ID. If the new
-snapshot does not descend from the saved checkpoint, inspect that divergence
-before choosing a comparison range; do not silently restart from the base release.
-
-There is no need to rebuild for every upstream update. Review and installation can
-be separate sessions. Clean up disposable test data and obsolete artifacts after
-validation; keep the source, Git history, normal and retained development profiles,
-current package, one previous working package and useful verification evidence.
+The local [upstream update procedure](docs/local/T3Code_Upstream_Updates.md) owns
+comparison, overlap review, integration and verification steps. This document owns
+the custom behavior those updates must preserve. Exact update results belong in
+the [private build record](docs/local/T3Code_Private_Build_Record.md).
 
 ### Building and maintaining the source
 
