@@ -41,6 +41,7 @@ export interface PreviewMoreMenuActions {
 
 interface Props {
   enabled: boolean;
+  onClose: () => void;
   actions: PreviewMoreMenuActions;
   zoomFactor: number;
   colorScheme: DesktopPreviewColorScheme;
@@ -68,6 +69,7 @@ const MenuTriggerButton = () => (
 
 export function PreviewMoreMenu({
   enabled,
+  onClose,
   actions,
   zoomFactor,
   colorScheme,
@@ -171,6 +173,8 @@ export function PreviewMoreMenu({
           <MenuItem onClick={actions.clearCookies}>Clear cookies</MenuItem>
           <MenuItem onClick={actions.clearCache}>Clear cache</MenuItem>
         </MenuGroup>
+        <MenuSeparator />
+        <MenuItem onClick={onClose}>Close browser</MenuItem>
       </MenuPopup>
     </Menu>
   );

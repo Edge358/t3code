@@ -4,11 +4,13 @@ import {
   DEFAULT_UNIFIED_SETTINGS,
   MAX_CODE_FONT_SIZE,
   MAX_CONTEXT_MENU_FONT_SIZE,
+  MAX_THREAD_FONT_SIZE,
   MAX_INTERFACE_FONT_SIZE,
   MAX_PROMPT_FONT_SIZE,
   MAX_TERMINAL_FONT_SIZE,
   MIN_CODE_FONT_SIZE,
   MIN_CONTEXT_MENU_FONT_SIZE,
+  MIN_THREAD_FONT_SIZE,
   MIN_INTERFACE_FONT_SIZE,
   MIN_PROMPT_FONT_SIZE,
   MIN_TERMINAL_FONT_SIZE,
@@ -231,6 +233,57 @@ function FontSmoothingRow() {
   );
 }
 
+function ThreadSizeRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <SettingsRow
+      {...searchableSetting("thread-font-size")}
+      description="Sidebar thread names only. Uses the Interface font and size scale."
+      resetAction={
+        settings.fontSizeThread !== DEFAULT_UNIFIED_SETTINGS.fontSizeThread ? (
+          <SettingResetButton
+            label="thread font size"
+            onClick={() =>
+              updateSettings({ fontSizeThread: DEFAULT_UNIFIED_SETTINGS.fontSizeThread })
+            }
+          />
+        ) : null
+      }
+      control={
+        <Select
+          value={String(settings.fontSizeThread)}
+          onValueChange={(next) => {
+            if (typeof next !== "string") return;
+            const size = Number(next);
+            if (
+              Number.isInteger(size) &&
+              size >= MIN_THREAD_FONT_SIZE &&
+              size <= MAX_THREAD_FONT_SIZE
+            ) {
+              updateSettings({ fontSizeThread: size });
+            }
+          }}
+        >
+          <SelectTrigger size="sm" className="w-22" aria-label="Thread font size">
+            <SelectValue>{settings.fontSizeThread} px</SelectValue>
+          </SelectTrigger>
+          <SelectPopup align="end" alignItemWithTrigger={false}>
+            {Array.from(
+              { length: MAX_THREAD_FONT_SIZE - MIN_THREAD_FONT_SIZE + 1 },
+              (_, index) => MIN_THREAD_FONT_SIZE + index,
+            ).map((px) => (
+              <SelectItem hideIndicator key={px} value={String(px)}>
+                {px} px
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      }
+    />
+  );
+}
+
 function ContextMenuSizeRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -390,6 +443,7 @@ export function TypographySection() {
   return (
     <SettingsSection id="typography" title="Typography">
       {showAdvanced ? <FontSettingsGroup /> : <SimpleFontRows />}
+      <ThreadSizeRow />
       <ContextMenuSizeRow />
       <WordWrapRow />
       <AdvancedSettings

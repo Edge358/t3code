@@ -82,11 +82,15 @@ type TypographySettings = Pick<
   | "fontSizePrompt"
   | "fontSizeCode"
   | "fontSizeContextMenu"
+  | "fontSizeThread"
   | "fontSizeTerminal"
 >;
 
 export function getChangedTypographySettingLabels(settings: TypographySettings): string[] {
   return [
+    ...(settings.fontSizeThread !== DEFAULT_UNIFIED_SETTINGS.fontSizeThread
+      ? ["Thread font size"]
+      : []),
     ...(settings.fontSizeContextMenu !== DEFAULT_UNIFIED_SETTINGS.fontSizeContextMenu
       ? ["Right-click menu size"]
       : []),

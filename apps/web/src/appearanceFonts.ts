@@ -1,14 +1,17 @@
 import {
   DEFAULT_CODE_FONT_SIZE,
   DEFAULT_CONTEXT_MENU_FONT_SIZE,
+  DEFAULT_THREAD_FONT_SIZE,
   DEFAULT_INTERFACE_FONT_SIZE,
   DEFAULT_PROMPT_FONT_SIZE,
   MAX_CODE_FONT_SIZE,
   MAX_CONTEXT_MENU_FONT_SIZE,
+  MAX_THREAD_FONT_SIZE,
   MAX_INTERFACE_FONT_SIZE,
   MAX_PROMPT_FONT_SIZE,
   MIN_CODE_FONT_SIZE,
   MIN_CONTEXT_MENU_FONT_SIZE,
+  MIN_THREAD_FONT_SIZE,
   MIN_INTERFACE_FONT_SIZE,
   MIN_PROMPT_FONT_SIZE,
 } from "@t3tools/contracts";
@@ -69,6 +72,7 @@ export interface AppearanceFontPreferences {
   readonly sizePrompt: number;
   readonly sizeCode: number;
   readonly sizeContextMenu: number;
+  readonly sizeThread: number;
   readonly smoothing: boolean;
   readonly separate: boolean;
 }
@@ -104,6 +108,15 @@ export function applyAppearanceFontVariables(
     "--font-size-context-menu",
     `${clampFontSize(preferences.sizeContextMenu, MIN_CONTEXT_MENU_FONT_SIZE, MAX_CONTEXT_MENU_FONT_SIZE, DEFAULT_CONTEXT_MENU_FONT_SIZE)}px`,
   );
+
+  // Sidebar labels use text-sm (0.875rem); keep Thread and Interface sizes comparable.
+  const thread = clampFontSize(
+    preferences.sizeThread,
+    MIN_THREAD_FONT_SIZE,
+    MAX_THREAD_FONT_SIZE,
+    DEFAULT_THREAD_FONT_SIZE,
+  );
+  root.style.setProperty("--font-size-thread", `${thread * 0.875}px`);
 
   if (preferences.smoothing) {
     root.style.setProperty("-webkit-font-smoothing", "antialiased");

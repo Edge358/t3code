@@ -318,7 +318,7 @@ export const ChatHeader = memo(function ChatHeader({
                   }
                 >
                   <ProjectFavicon project={activeProject} className="size-3.5" />
-                  <WorkspaceBreadcrumbText className="max-w-40">
+                  <WorkspaceBreadcrumbText className="max-w-40 text-foreground opacity-50">
                     {activeProjectName}
                   </WorkspaceBreadcrumbText>
                 </TooltipTrigger>
@@ -346,12 +346,16 @@ export const ChatHeader = memo(function ChatHeader({
                 >
                   <WorkspaceBreadcrumbText
                     aria-hidden
-                    className={collapseParentTitle ? "w-0" : undefined}
+                    className={cn("text-foreground opacity-50", collapseParentTitle && "w-0")}
                   >
                     {parentThreadLink.title}
                   </WorkspaceBreadcrumbText>
                   {collapseParentTitle ? (
-                    <span aria-hidden data-parent-breadcrumb-ellipsis>
+                    <span
+                      aria-hidden
+                      data-parent-breadcrumb-ellipsis
+                      className="text-foreground opacity-50"
+                    >
                       ...
                     </span>
                   ) : null}
@@ -403,7 +407,9 @@ export const ChatHeader = memo(function ChatHeader({
                 }
               >
                 <h2 className="min-w-0" dir={textDirection(activeThreadTitle)}>
-                  <WorkspaceBreadcrumbText>{activeThreadTitle}</WorkspaceBreadcrumbText>
+                  <WorkspaceBreadcrumbText className="opacity-50">
+                    {activeThreadTitle}
+                  </WorkspaceBreadcrumbText>
                 </h2>
                 <ChevronDownIcon
                   aria-hidden
@@ -425,7 +431,9 @@ export const ChatHeader = memo(function ChatHeader({
                   />
                 }
               >
-                <WorkspaceBreadcrumbText>{activeThreadTitle}</WorkspaceBreadcrumbText>
+                <WorkspaceBreadcrumbText className="opacity-50">
+                  {activeThreadTitle}
+                </WorkspaceBreadcrumbText>
               </TooltipTrigger>
               <TooltipPopup side="top">{activeThreadTitle}</TooltipPopup>
             </Tooltip>

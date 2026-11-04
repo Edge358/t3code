@@ -1726,6 +1726,12 @@ body {
 
 [data-preview-url-input] {
   font-variant-ligatures: none;
+  color: color-mix(in srgb, var(--contrast-foreground) 50%, transparent);
+}
+
+[data-preview-url-input]::placeholder {
+  color: inherit;
+  opacity: 1;
 }
 
 /* Lighter default icon stroke. In the base layer so stroke-* utilities still win; any

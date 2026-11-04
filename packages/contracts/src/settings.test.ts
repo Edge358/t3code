@@ -27,15 +27,19 @@ const decodeClientSettings = Schema.decodeUnknownSync(ClientSettingsSchema);
 const decodeClientSettingsPatch = Schema.decodeUnknownSync(ClientSettingsPatch);
 const encodeClientSettings = Schema.encodeSync(ClientSettingsSchema);
 
-it("defaults old profiles to 18px menus and persists valid independent menu sizes", () => {
-  expect(decodeClientSettings({}).fontSizeContextMenu).toBe(18);
-  const settings = decodeClientSettings({ fontSizeCode: 22, fontSizeContextMenu: 20 });
-  expect(decodeClientSettings(encodeClientSettings(settings)).fontSizeContextMenu).toBe(20);
-  expect(decodeClientSettingsPatch({ fontSizeContextMenu: 24 })).toEqual({
-    fontSizeContextMenu: 24,
+it.each([
+  ["fontSizeContextMenu", 18],
+  ["fontSizeThread", 22],
+] as const)("defaults old profiles and persists independent %s", (key, defaultSize) => {
+  expect(decodeClientSettings({})[key]).toBe(defaultSize);
+  const settings = decodeClientSettings({ fontSizeInterface: 24, fontSizeCode: 22, [key]: 20 });
+  expect(decodeClientSettings(encodeClientSettings(settings))[key]).toBe(20);
+  expect(decodeClientSettings(encodeClientSettings(settings)).fontSizeInterface).toBe(24);
+  expect(decodeClientSettingsPatch({ [key]: 24 })).toEqual({
+    [key]: 24,
   });
   for (const size of [11, 25, 18.5]) {
-    expect(() => decodeClientSettingsPatch({ fontSizeContextMenu: size })).toThrow();
+    expect(() => decodeClientSettingsPatch({ [key]: size })).toThrow();
   }
 });
 const decodeServerSettings = Schema.decodeUnknownSync(ServerSettings);

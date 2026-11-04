@@ -92,6 +92,7 @@ export function RightPanelSurfaceContent(props: {
             configuredUrls={props.configuredPreviewUrls}
             visible={visible}
             onSendAnnotation={props.onSendAnnotation}
+            onClose={() => onCloseSurface(surface)}
           />
         </Suspense>
       );

@@ -37,6 +37,7 @@ describe("applyAppearanceFontVariables", () => {
       sizePrompt: 14,
       sizeCode: 20,
       sizeContextMenu: 18,
+      sizeThread: 22,
       smoothing: true,
     };
     try {
@@ -65,6 +66,33 @@ describe("applyAppearanceFontVariables", () => {
           probe.style.fontSize = "var(--font-size-context-menu)";
         }),
       ).toBe("22px");
+
+      const threadSize = () =>
+        renderedFontSize((probe) => {
+          probe.className = "text-(length:--font-size-thread,var(--text-sm))";
+        });
+      expect(threadSize()).toBe("19.25px");
+      applyAppearanceFontVariables(root, { ...preferences, sizeThread: 20, separate: false });
+      expect(threadSize()).toBe("17.5px");
+      expect(
+        renderedFontSize((probe) => {
+          probe.className = "text-sm";
+        }),
+      ).toBe("21px");
+      expect(composerFontSize()).toBe("20px");
+      expect(root.style.getPropertyValue("--font-size-context-menu")).toBe("18px");
+      applyAppearanceFontVariables(root, {
+        ...preferences,
+        sizeThread: 20,
+        sizeInterface: 16,
+        separate: false,
+      });
+      expect(threadSize()).toBe("17.5px");
+      expect(
+        renderedFontSize((probe) => {
+          probe.className = "text-sm";
+        }),
+      ).toBe("14px");
 
       applyAppearanceFontVariables(root, { ...preferences, separate: true });
       expect(composerFontSize()).toBe("14px");

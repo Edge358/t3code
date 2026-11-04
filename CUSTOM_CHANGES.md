@@ -84,6 +84,7 @@ The upstream README links here so a future reader can identify this variant.
 | Consistent 24px upper limit  | Previously Interface/Prompt/Terminal stopped at 20px and Code at 18px. All four now permit 24px for distant viewing and accessibility. Existing minimums and default font values remain.                                                                       | [settings.ts](packages/contracts/src/settings.ts)                                                                                                                               |
 | One shared chat/code size    | With Separate fonts off, the size beside Monospace font controls the typing box, ordinary replies, code, diffs, file previews, and terminal. Changing it in Settings updates the display without rebuilding.                                                   | [appearanceFonts.ts](apps/web/src/appearanceFonts.ts), [TypographySettings.tsx](apps/web/src/components/settings/TypographySettings.tsx), [utils.ts](apps/web/src/lib/utils.ts) |
 | Uniform reply content size   | Prose, inline/fenced code, headings, and tables use the reply size. Weights, structure, and syntax coloring remain. This is a deliberate aesthetic choice; different fonts can still have different apparent letter heights at the same CSS size.              | [index.css](apps/web/src/index.css), [ChatMarkdown.tsx](apps/web/src/components/ChatMarkdown.tsx)                                                                               |
+| Independent thread size      | Thread font size sits above Right-click menu size in Appearance > Typography. It uses 12-24, default 22, on the Interface size scale. Only sidebar thread/draft names and their rename fields change; folder names keep following Interface size.              | [TypographySettings.tsx](apps/web/src/components/settings/TypographySettings.tsx), [appearanceFonts.ts](apps/web/src/appearanceFonts.ts), sidebar thread/draft rows             |
 | Adjustable right-click menus | A new independent Right-click menu size setting uses 12-24px, default 18px, and the Interface font. App action menus use the existing app-rendered menu instead of the native desktop menu so the setting can apply. This does not restyle every Windows menu. | [localApi.ts](apps/web/src/localApi.ts), [contextMenuFallback.ts](apps/web/src/contextMenuFallback.ts), settings schema/UI/search                                               |
 | Smaller welcome heading      | The new-thread heading uses Interface size plus 6px rather than the former large heading scale. It remains part of the empty-thread view.                                                                                                                      | [DraftHeroHeadline.tsx](apps/web/src/components/chat/DraftHeroHeadline.tsx), [DraftHeroProjectHeading.tsx](apps/web/src/components/chat/DraftHeroProjectHeading.tsx)            |
 | Dimmer empty input hint      | The placeholder has 50% opacity; entered text stays fully opaque. This makes the hint easier to distinguish from an actual draft.                                                                                                                              | [ComposerPromptEditorTiptap.tsx](apps/web/src/components/ComposerPromptEditorTiptap.tsx)                                                                                        |
@@ -100,6 +101,12 @@ Code 13px, Terminal 12px. Because ordinary replies now follow Code size, a fresh
 profile's reply size also follows that 13px value. Another computer can use its
 own sizes in Settings.
 
+Thread font size defaults to 22 for profiles without a saved value. It retains
+the sidebar label scale (0.875 times the selected size), so matching Thread and
+Interface settings produce equal-size labels. At Interface 24, Thread 22 or 20
+reduces only the sidebar thread lettering. Settings search, individual reset, and
+Restore defaults include this control; the font family remains the Interface font.
+
 Validation includes schema limits, persisted settings, live font changes,
 Markdown sizes, app-menu selection/navigation, and packaged computed styles.
 The final packaged check measured actual reply/input text at 22px, actual menu
@@ -112,6 +119,11 @@ Typed search text and the search icon keep their normal appearance.
 Sidebar folder rows size their offscreen placeholders with the interface scale,
 so large fonts do not leave fixed-height gaps when groups expand. Panel maximize
 controls disappear immediately on close instead of fading beside their replacement.
+
+The top-bar project name, thread title (including parent threads), and browser tab
+name use 50% text opacity. Browser address/search text and its placeholder use the
+same half-opacity foreground color. Icons, buttons, sidebar labels, and rename
+inputs retain their existing appearance.
 
 The thread-details card starts closed. Collapsing or reopening the left sidebar
 does not open it. Its titlebar toggle remains available, and an explicitly opened
@@ -162,12 +174,16 @@ across environments.
 Project heading text matches the existing monogram or configured icon color,
 using the same light/dark palette. Emoji and displayed image icons keep neutral
 headings; a failed image returns to the monogram color. Only the project name is
-colored. Thread names, counts, controls, and font sizes retain their existing styles.
+colored. This color rule does not change thread names, counts, or controls.
 
 The T3 Code title and sidebar toggle share a navy-blue accent. The Settled label
 uses a deep red, while its count and chevron remain neutral. Both accents have
 light-mode counterparts; environment backdrops retain their white title and toggle.
 These are sidebar presentation colors, not new settings or thread-status colors.
+
+In the desktop app, the T3 Code name is a window-drag area with no Home action.
+The sidebar toggle, history arrows, and project/thread dropdowns keep their actions.
+In a web browser, the T3 Code name remains a Home link.
 
 In **Manual** project order, drag a project heading onto another heading to move
 it in the saved order. Moving downward places it after the target; moving upward
@@ -243,6 +259,11 @@ updated in [keybindings](docs/user/keybindings.md) and
 [thread sidebar](docs/user/thread-sidebar.md). Browser coverage includes opening
 the chooser with no projects. Folder browsing and chooser order were also
 checked in packaged builds.
+
+The Browser three-dot menu ends with **Close browser**. It uses the existing tab
+close operation, including its agent-control confirmation, and removes that
+browser session and its floating preview. Other tabs stay open. Closing does not
+clear cookies, cache, history, or other browser-profile data.
 
 ### Dictation mouse buttons
 
@@ -613,8 +634,8 @@ The [independent review](docs/custom-build/independent-review-2026-10-31.md#for-
 preserves historical findings and follow-up guidance. Read its current-reading
 notice before treating any dated finding as an open defect; current validation
 limits are described in section 6 and the private build record.
-The sidebar's hover-only deletion indicator and choices about heading sizes and
-menus remain unchanged. A failed partial deletion intentionally stays marked and
+The sidebar's hover-only deletion indicator remains unchanged. Current typography
+and menu customization are described in section 1. A failed partial deletion intentionally stays marked and
 blocks new provider work until retry completes; removed history cannot be restored
 by clearing that marker.
 

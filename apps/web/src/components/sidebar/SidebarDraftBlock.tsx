@@ -109,7 +109,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
                 autoFocus
                 aria-label="Thread title"
                 defaultValue={renameTitle}
-                className="min-w-0 flex-1 rounded-sm bg-transparent text-sm outline-none ring-1 ring-ring"
+                className="min-w-0 flex-1 rounded-sm bg-transparent text-(length:--font-size-thread,var(--text-sm)) outline-none ring-1 ring-ring"
                 onClick={(event) => event.stopPropagation()}
                 onDoubleClick={(event) => event.stopPropagation()}
                 onBlur={(event) => commitRename(event.currentTarget.value)}
@@ -128,7 +128,12 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
                 }}
               />
             ) : (
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-sidebar-foreground">
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate font-medium text-sidebar-foreground",
+                  props.parentRowId ? "text-(length:--font-size-thread,var(--text-sm))" : "text-sm",
+                )}
+              >
                 {props.parentRowId ? preview : props.projectDisplayName}
               </span>
             )}
@@ -151,7 +156,10 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
             </span>
           </div>
           {!props.parentRowId && (
-            <div aria-hidden className="mt-0.5 truncate text-sm font-medium text-foreground/90">
+            <div
+              aria-hidden
+              className="mt-0.5 truncate text-(length:--font-size-thread,var(--text-sm)) font-medium text-foreground/90"
+            >
               {preview}
             </div>
           )}

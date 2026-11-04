@@ -176,6 +176,13 @@ export const CodeFontSize = Schema.Int.check(
 export type CodeFontSize = typeof CodeFontSize.Type;
 export const DEFAULT_CODE_FONT_SIZE: CodeFontSize = 13;
 
+export const MIN_THREAD_FONT_SIZE = 12;
+export const MAX_THREAD_FONT_SIZE = 24;
+export const ThreadFontSize = Schema.Int.check(
+  Schema.isBetween({ minimum: MIN_THREAD_FONT_SIZE, maximum: MAX_THREAD_FONT_SIZE }),
+);
+export const DEFAULT_THREAD_FONT_SIZE = 22;
+
 export const MIN_CONTEXT_MENU_FONT_SIZE = 12;
 export const MAX_CONTEXT_MENU_FONT_SIZE = 24;
 export const ContextMenuFontSize = Schema.Int.check(
@@ -444,6 +451,9 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   fontSizeCode: CodeFontSize.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_CODE_FONT_SIZE)),
+  ),
+  fontSizeThread: ThreadFontSize.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_THREAD_FONT_SIZE)),
   ),
   fontSizeContextMenu: ContextMenuFontSize.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_CONTEXT_MENU_FONT_SIZE)),
@@ -1807,6 +1817,7 @@ export const ClientSettingsPatch = Schema.Struct({
   fontSizeInterface: Schema.optionalKey(InterfaceFontSize),
   fontSizePrompt: Schema.optionalKey(PromptFontSize),
   fontSizeCode: Schema.optionalKey(CodeFontSize),
+  fontSizeThread: Schema.optionalKey(ThreadFontSize),
   fontSizeContextMenu: Schema.optionalKey(ContextMenuFontSize),
   fontSizeTerminal: Schema.optionalKey(TerminalFontSize),
   fontFamilyCode: Schema.optionalKey(FontFamilyPreference),

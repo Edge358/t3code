@@ -171,6 +171,7 @@ function view(onSendAnnotation?: ComponentProps<typeof PreviewView>["onSendAnnot
       threadRef={TEST_THREAD_REF}
       tabId="tab-1"
       visible
+      onClose={() => {}}
       {...(onSendAnnotation ? { onSendAnnotation } : {})}
     />
   );
@@ -322,7 +323,7 @@ describe("PreviewView", () => {
 
     await act(() => input.blur());
     await screen.rerender(
-      <PreviewView threadRef={TEST_THREAD_REF} tabId="tab-1" visible={false} />,
+      <PreviewView threadRef={TEST_THREAD_REF} tabId="tab-1" visible={false} onClose={() => {}} />,
     );
     await forward();
     await expect.element(address).not.toHaveFocus();

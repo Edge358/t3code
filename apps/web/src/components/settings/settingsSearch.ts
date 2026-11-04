@@ -388,6 +388,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "thread-font-size",
+    title: "Thread font size",
+    to: "/settings/appearance",
+    searchTerms: ["typography sidebar thread conversation title name font size"],
+  },
+  {
     id: "context-menu-size",
     title: "Right-click menu size",
     to: "/settings/appearance",

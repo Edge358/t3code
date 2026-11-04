@@ -979,7 +979,14 @@ function RightPanelTab(
                 aria-label={sideChatState === null ? undefined : `${title}, ${sideChatState}`}
                 onClick={() => onActivate(surface)}
               >
-                <span className="truncate">{title}</span>
+                <span
+                  className={cn(
+                    "truncate",
+                    surface.kind === "preview" && "text-foreground opacity-50",
+                  )}
+                >
+                  {title}
+                </span>
               </button>
             }
           />
