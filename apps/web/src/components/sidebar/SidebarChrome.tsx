@@ -168,7 +168,7 @@ function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
       aria-label="T3 Code home"
       className={cn(
         "relative z-10 ml-[var(--workspace-titlebar-content-left)] hidden h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset md:flex",
-        onBackdrop ? "text-white" : "text-foreground",
+        onBackdrop ? "text-white" : "text-sidebar-brand",
       )}
       to="/"
     >
@@ -184,7 +184,7 @@ function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
       <span
         className={cn(
           "truncate [text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both_cap_alphabetic]:py-1",
-          onBackdrop ? "text-white/70" : "text-muted-foreground",
+          onBackdrop ? "text-white/70" : "text-inherit",
         )}
       >
         Code

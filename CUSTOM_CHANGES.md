@@ -159,6 +159,16 @@ across environments.
 
 ### Project order, empty drafts, and open groups
 
+Project heading text matches the existing monogram or configured icon color,
+using the same light/dark palette. Emoji and displayed image icons keep neutral
+headings; a failed image returns to the monogram color. Only the project name is
+colored. Thread names, counts, controls, and font sizes retain their existing styles.
+
+The T3 Code title and sidebar toggle share a navy-blue accent. The Settled label
+uses a deep red, while its count and chevron remain neutral. Both accents have
+light-mode counterparts; environment backdrops retain their white title and toggle.
+These are sidebar presentation colors, not new settings or thread-status colors.
+
 In **Manual** project order, drag a project heading onto another heading to move
 it in the saved order. Moving downward places it after the target; moving upward
 places it before the target. The other project sort modes do not allow dragging

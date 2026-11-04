@@ -282,6 +282,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --color-message-action-foreground: var(--message-action-foreground);
   --color-message-action-hover: var(--message-action-hover);
   --color-sidebar: var(--sidebar);
+  --color-sidebar-brand: light-dark(#1d4ed8, #002d80);
+  --color-sidebar-settled: light-dark(#b34545, #a21111);
   --color-sidebar-foreground: var(--contrast-sidebar-foreground);
   --color-sidebar-muted-foreground: var(--contrast-sidebar-muted-foreground);
   --color-sidebar-control-surface: var(--sidebar-control-surface);

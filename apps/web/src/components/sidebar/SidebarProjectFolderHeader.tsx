@@ -4,6 +4,8 @@ import { ChevronDownIcon, SquarePenIcon } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 
 import { cn } from "~/lib/utils";
+import { deriveProjectIdentity } from "../../projectIdentity";
+import { projectIconColorClassName } from "../../projectIconColors";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import { useUiStateStore } from "../../uiStateStore";
 import { resolveSidebarFolderDot, resolveThreadLastVisitedAt } from "../Sidebar.logic";
@@ -46,6 +48,11 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
   onContextMenu: (group: SidebarProjectSnapshot, position: { x: number; y: number }) => void;
 }) {
   const { group, collapsed, hiddenThreads } = props;
+  const headingColor =
+    group.projectIcon?.kind === "emoji"
+      ? null
+      : (group.projectIcon?.color ??
+        (group.title.trim() ? deriveProjectIdentity(group.title).color : null));
   const [dropTarget, setDropTarget] = useState(false);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clear native drag feedback even when Escape cancels or the drop lands outside this header
   useEffect(() => {
@@ -129,7 +136,14 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
         className="flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-(--control-radius) px-(--sidebar-row-content-inset) text-left outline-none hover:bg-sidebar-row-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <ProjectFavicon project={group} className="size-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-sidebar-foreground/90">
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-sm font-medium",
+            headingColor ? projectIconColorClassName(headingColor) : "text-sidebar-foreground/90",
+            !group.projectIcon &&
+              "group-has-[img:not(.hidden)]/project-folder:text-sidebar-foreground/90",
+          )}
+        >
           {group.displayName}
         </span>
         {dot ? (

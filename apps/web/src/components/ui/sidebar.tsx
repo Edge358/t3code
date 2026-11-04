@@ -411,7 +411,13 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       variant="ghost"
       {...props}
     >
-      <MorphIcon className="size-4" icon={isOpen ? PanelLeftClose : PanelLeft} />
+      <MorphIcon
+        className={cn(
+          "size-4",
+          props.variant === "media-navigation" ? "text-white" : "text-sidebar-brand",
+        )}
+        icon={isOpen ? PanelLeftClose : PanelLeft}
+      />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
