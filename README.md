@@ -4,6 +4,8 @@ My personal build of [T3 Code](https://github.com/pingdotgg/t3code), the open-so
 app for running coding agents like Codex and Claude. It adds my own changes for
 privacy, cleanup, readability and the way I work.
 
+![The sidebar with colored project names and the welcome page](docs/custom-build/images/sidebar-and-welcome.png)
+
 This is not an official release. For the regular app, use
 [Theo's project](https://github.com/pingdotgg/t3code). This fork's `main` branch
 is an unchanged copy of it.
