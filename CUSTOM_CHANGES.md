@@ -45,9 +45,8 @@ These are candidates for discussion, not assumptions about upstream priorities;
 
 Original upstream base: T3 Code `v0.1.6`, commit `2359643cffa6ba9ee84d6f2694b935de54a8013e`,
 tagged locally as `private-base-v0.1.6`. The maintained source incorporates later
-upstream updates with the private behavior preserved. The local
-[build record](docs/local/T3Code_Private_Build_Record.md#upstream-comparison-checkpoint)
-owns the current incorporated upstream snapshot, separately from the installed
+upstream updates with the private behavior preserved. The private build
+record (not published) owns the current incorporated upstream snapshot, separately from the installed
 private build. Use that snapshot when identifying the remaining custom differences.
 This document describes how the variant
 behaves now and why. The verification section states the public evidence limits;
@@ -56,9 +55,10 @@ and `.local`. The privacy review keeps its own dated runtime evidence.
 
 T3 Code is the upstream project by T3 Tools Inc. This document describes a locally
 modified build, not an official release or an upstream-endorsed product. The
-upstream [LICENSE](LICENSE) and attribution remain intact. This local checkpoint
-is maintained on `edge358-custom-build`; no hosted fork or pull request has
-been published.
+upstream [LICENSE](LICENSE) and attribution remain intact. This variant is
+maintained on the `edge358-custom-build` branch. The public fork
+[Edge358/t3code](https://github.com/Edge358/t3code) keeps `main` identical to
+upstream; this branch and single-suggestion branches are published there when ready.
 
 The work started with a privacy review and expanded to readability, project
 navigation, settings defaults, optional speech, and synchronized deletion of
@@ -75,7 +75,7 @@ Documentation locations: this file is the shareable overview; `docs/custom-build
 holds the detailed privacy review. Machine-specific documentation lives under Git-ignored `docs/local`; private
 artifacts, runtime data and verification evidence live under Git-ignored `.local`.
 Neither is distributed with the source.
-The upstream README links here so a future reader can identify this variant.
+The README links here so a future reader can identify this variant.
 
 ## 1. Readability and appearance
 
@@ -596,7 +596,7 @@ readability or reliability proposal. A PR is a request to merge a selected chang
 a fork is a separately maintained copy. Neither is required to keep this record.
 
 For a source review, take the current incorporated upstream ID from the
-[build record](docs/local/T3Code_Private_Build_Record.md#upstream-comparison-checkpoint).
+private build record (not published).
 Replace the placeholder below with that ID. This comparison identifies our
 remaining changes; comparing against the original v0.1.6 release also includes
 upstream improvements already incorporated here.
@@ -724,18 +724,17 @@ preferences and the onboarding marker, so it is not part of normal installation.
 
 ### Reviewing newer upstream changes
 
-The local [upstream update procedure](docs/local/T3Code_Upstream_Updates.md) owns
+The private upstream update procedure (not published) owns
 comparison, overlap review, integration and verification steps. This document owns
 the custom behavior those updates must preserve. Exact update results belong in
-the [private build record](docs/local/T3Code_Private_Build_Record.md).
+the private build record (not published).
 
 ### Building and maintaining the source
 
-Keep the upstream Git history and v0.1.6 base intact. The custom changes are
-recorded on the local `edge358-custom-build` branch without creating an online
-repository. Publishing a fork and proposing a pull request are separate
-decisions. The parent folder's name does not determine whether anything is
-uploaded.
+Keep the upstream Git history and v0.1.6 base intact. The custom changes live
+on the `edge358-custom-build` branch. Publishing that branch to the fork and
+proposing a pull request are separate decisions; each upstream suggestion is its
+own branch from the fork's unchanged `main`.
 
 The commit hook passes relative file paths to its staged formatter/linter. This
 avoids the Windows command-length limit when committing this larger change set;

@@ -2,8 +2,8 @@
 
 > **Current reading guidance:** findings and work orders below preserve the dated
 > review and its fix passes, not a list of currently open defects. The overnight
-> fixes landed in `838090cc`; the next source checkpoint is `f58d11f8`.
-> Subsequent deletion work in `8681960f` includes all descendants and server-content
+> fixes landed in `7c0f4a6a`; the next source checkpoint is `bf446609`.
+> Subsequent deletion work in `841ccf34` includes all descendants and server-content
 > cleanup. The later neutral-home and clickable-menu changes are described in
 > [the current navigation summary](../../CUSTOM_CHANGES.md#2-projects-and-new-conversations).
 > This dated review is not a review of those later changes.
@@ -14,9 +14,9 @@
 > Current validation limits are in [Custom changes](../../CUSTOM_CHANGES.md#6-verification-approach).
 
 This is a second-opinion review of the two local commits on `edge358-custom-build`
-(91a91457 and 0e88eb39, on top of upstream v0.1.6, tag `private-base-v0.1.6`), written
+(e6e8a555 and 8151e94c, on top of upstream v0.1.6, tag `private-base-v0.1.6`), written
 as a brief for a fresh agent. The three Status sections below record what was then
-fixed; those fixes are the commit that follows 0e88eb39. If you are reviewing that
+fixed; those fixes are the commit that follows 8151e94c. If you are reviewing that
 commit, start at [For the next reviewer](#for-the-next-reviewer). To understand the
 original findings, read [Findings](#findings).
 
@@ -152,14 +152,14 @@ they found, and what was done:
 
 ## For the next reviewer
 
-The fixes described in the three Status sections were committed as `838090cc` on
-`edge358-custom-build`, directly after `0e88eb39`. Review the subsequent uncommitted
+The fixes described in the three Status sections were committed as `7c0f4a6a` on
+`edge358-custom-build`, directly after `8151e94c`. Review the subsequent uncommitted
 changes as well:
 
 ```
 git log --oneline private-base-v0.1.6..edge358-custom-build
-git diff 0e88eb39 HEAD --stat
-git diff 0e88eb39 HEAD
+git diff 8151e94c HEAD --stat
+git diff 8151e94c HEAD
 git status --short
 git diff
 ```
@@ -199,8 +199,8 @@ build. `vp run check:changed` does not run on this machine because it spawns a g
 ## Scope and how this review was done
 
 - Repository: this checkout. Upstream base is T3 Code v0.1.6,
-  commit `2359643c`. Local commits: `91a91457` (privacy, readability, speech,
-  Claude usage fallback) and `0e88eb39` (synchronized history deletion, build
+  commit `2359643c`. Local commits: `e6e8a555` (privacy, readability, speech,
+  Claude usage fallback) and `8151e94c` (synchronized history deletion, build
   consolidation). Together: 147 files, about 4,650 insertions.
 - Method: read `README.md`, `CUSTOM_CHANGES.md`, `docs/custom-build/privacy-review.md`,
   the private `docs/local` index and install handoff, and the full code diff against
@@ -234,7 +234,7 @@ the repository's own rules say does not belong in tracked files. Details follow.
 
 ## Findings
 
-### A. Synchronized local conversation deletion (commit 0e88eb39)
+### A. Synchronized local conversation deletion (commit 8151e94c)
 
 **A1. Blocker. Codex descendant protection depends on an undeclared protocol field.**
 `apps/server/src/orchestration-v2/Adapters/codexHistoryDeletion.ts:29-30` sends
