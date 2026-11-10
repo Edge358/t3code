@@ -37,8 +37,8 @@ Details and reasons: [Custom changes](CUSTOM_CHANGES.md) ·
 
 ## Suggestions for T3 Code
 
-Changes that might help everyone are offered to Theo one at a time, each on its
-own branch in this fork.
+Changes that might help everyone will be offered to Theo one at a time, each on
+its own branch in this fork.
 
 ## Credit and license
 

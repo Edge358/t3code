@@ -32,6 +32,13 @@ $env:T3CODE_OTEL_SDK_DISABLED = 'true'
 $env:OTEL_SDK_DISABLED = 'true'
 $env:T3CODE_DISABLE_AUTO_UPDATE = 'true'
 New-Item -ItemType Directory -Force -Path $env:T3CODE_DESKTOP_APP_DATA, $env:T3CODE_HOME | Out-Null
+# An empty profile looks like a fresh install, and a fresh install adds a t3 folder to the
+# real user PATH. The first-launch marker leaves that command to Settings instead.
+$firstLaunchMarker = Join-Path $env:T3CODE_HOME 'userdata\cli-command-first-launch'
+if (-not (Test-Path -LiteralPath $firstLaunchMarker)) {
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $firstLaunchMarker) | Out-Null
+    [System.IO.File]::WriteAllText($firstLaunchMarker, '')
+}
 # The user-facing app is intentionally visible; no debug port is enabled.
 $appProcess = Start-Process -FilePath $appExecutable -WorkingDirectory $repoRoot -PassThru
 $launchRecord = [ordered]@{

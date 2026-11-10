@@ -1,8 +1,9 @@
 # Custom build: security and privacy review ledger
 
-Source/status reconciliation: 2026-11-01. Historical runtime evidence is dated below.
-Base: T3 Code `v0.1.6`, commit
-`2359643cffa6ba9ee84d6f2694b935de54a8013e`. Current build and validation: [custom changes](../../CUSTOM_CHANGES.md).
+Source/status reconciliation: 2026-11-01; the v0.1.8 additions were reviewed on
+2026-11-10. Historical runtime evidence is dated below.
+Original base: T3 Code `v0.1.6`, commit
+`2359643cffa6ba9ee84d6f2694b935de54a8013e`. The build is now on T3 Code `v0.1.8`. Current build and validation: [custom changes](../../CUSTOM_CHANGES.md).
 See [the complete change summary](../../CUSTOM_CHANGES.md) for appearance,
 navigation, defaults, speech, validation, and possible upstream proposals.
 
@@ -17,9 +18,9 @@ connections, and matters not established by testing.
 The review inspected the pinned source, traced relevant configuration and request
 paths, added focused regression tests, built the modified Windows app, inspected
 packaged restrictions, and observed process/network/DNS activity during selected
-operations. Original review notes, corrections to tracing methodology, build logs,
-hash inventories, and raw captures are preserved privately. This document omits
-personal paths, account data, and raw traces.
+operations. The original review notes, build logs, hash inventories, and raw captures
+were private working files and have since been retired; this ledger is the remaining
+record. It omits personal paths, account data, and raw traces.
 
 The app receives and stores conversations locally as part of providing its UI.
 It launches provider processes that communicate with their services. Localhost
@@ -236,9 +237,9 @@ Those two fixtures gained the existing capability guard; no operating-system
 permissions changed. Server typechecking and changed-code lint passed.
 
 Windows packaging and unpacked launch were validated. The private.15 installer
-was unsigned and not executed. Private evidence preserves artifact hashes,
-build-time source hashes, and later source inventories. The private.13 inventory
-includes post-build test guards. Later synchronized-deletion and review changes
+was unsigned and not executed. Artifact hashes, build-time source hashes, and later
+source inventories were recorded privately at the time and have since been retired.
+The private.13 inventory included post-build test guards. Later synchronized-deletion and review changes
 are recorded separately in the current change summary; these historical privacy
 checks do not certify newer builds.
 Hash inventories identify files; they are not source backups or commits.

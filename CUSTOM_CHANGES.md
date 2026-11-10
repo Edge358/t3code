@@ -497,9 +497,9 @@ per-message speech changes passed focused checks and were accepted on the
 maintainer's installed desktop. Other-machine installation and broader live scenarios
 remain unverified.
 
-Exact build identities, per-build results, network captures, and the history of
-fixes are kept in the private build record under `docs/local`, which is ignored
-by Git. Counts from overlapping runs are never added together. An independent
+Exact build identities and the current build's results are kept in the private
+build record under `docs/local`, which is ignored by Git. Records of earlier builds
+were retired. Counts from overlapping runs are never added together. An independent
 code review of the whole variant, with
 its findings and the fixes applied, is in
 [docs/custom-build/independent-review-2026-10-31.md](docs/custom-build/independent-review-2026-10-31.md).
@@ -628,7 +628,7 @@ communication were not redesigned. Grouping settled threads by their original
 project is also deferred; the new deletion navigation does not change that grouping. Local deletion must not be presented as cloud
 deletion. No personal projects directory is hard-coded.
 
-Before any eventual public release, choose its identity and version, preserve
+For each public release, choose its identity and version, preserve
 upstream notices, review the selected files, and document the support scope.
 Other-machine installation, laptop/DPI testing, and network-hosted speech remain
 unverified. The installed artifact's remaining acceptance limits are in
@@ -667,9 +667,7 @@ All paths below are relative to the repository folder:
 
 On this development machine, disposable material blocked from automatic cleanup
 is moved to `../temp/delete` (the parent GitHub folder's `temp/delete` directory).
-The cleanup manifest or bundle's `CONTENTS.txt` identifies what was moved; the
-private build record locates the latest manifest. The current app
-and saved profile do not belong there.
+The current app and saved profile do not belong there.
 
 The profile, records, and generated builds are ignored by Git. Committing source
 does not back them up. Your actual project folders remain wherever you chose them.
@@ -745,7 +743,9 @@ own branch from the fork's unchanged `main`.
 
 The commit hook passes relative file paths to its staged formatter/linter. This
 avoids the Windows command-length limit when committing this larger change set;
-the formatter, linter and unused-code checks remain enabled.
+the formatter, linter and unused-code checks remain enabled. A release merge is the
+exception: it stages every file the release changed, too many for one Windows
+command, so the same checks are run by hand on the custom files.
 
 Use this checkout's pinned Node/pnpm requirements and established Windows
 TypeScript/Electron/Rust packaging workflow. General development setup remains
