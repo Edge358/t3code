@@ -20,7 +20,15 @@ vi.mock(import("../../hooks/useTheme"), async () => {
       ),
   };
 });
-import { withRemoteMediaConsent, setAutomaticRemoteMedia } from "./RemoteMediaConsent";
+import {
+  RemoteContentGate,
+  withRemoteMediaConsent,
+  setAutomaticRemoteMedia,
+} from "./RemoteMediaConsent";
+import { PullRequestActorAvatar } from "../pullRequest/pullRequestPresentation";
+import { TimelineRowCtx } from "./timelineRowContext";
+import { ToolActivityIconView } from "./TimelineToolActivityIcon";
+import { markdownImageGallery, markdownImageItems } from "./markdownImageGallery";
 
 const mounted = vi.fn();
 const GatedImage = withRemoteMediaConsent((props) => {
@@ -50,6 +58,14 @@ describe("external media consent", () => {
       .element(screen.getByRole("button", { name: "Load external media" }))
       .toBeInTheDocument();
     expect(mounted).not.toHaveBeenCalledWith("//example.invalid/b.png");
+    // Slashless and backslash forms still resolve to a remote host.
+    for (const source of ["https:example.invalid/c.png", "\\\\example.invalid/d.png"]) {
+      await screen.rerender(<GatedImage src={source} alt="diagram" />);
+      await expect
+        .element(screen.getByRole("button", { name: "Load external media" }))
+        .toBeInTheDocument();
+      expect(mounted).not.toHaveBeenCalledWith(source);
+    }
   });
 
   it("requires fresh consent when a picture theme selects an external source", async () => {
@@ -85,6 +101,91 @@ describe("external media consent", () => {
     using _preference = resetMediaPreference();
     await using screen = await render(<GatedImage src="/api/attachments/test.png" />);
     await expect.element(screen.getByTestId("loaded-media")).toBeInTheDocument();
+  });
+
+  it("keeps tool pages and videos unmounted until approved, then remembers that approval", async () => {
+    using _preference = resetMediaPreference();
+    const Content = () => {
+      mounted("page");
+      return <span data-testid="loaded-media">page</span>;
+    };
+    const gate = (
+      <RemoteContentGate approvalKey="mcp-app:a" message="Wants a page" actionLabel="Show page">
+        <Content />
+      </RemoteContentGate>
+    );
+    await using screen = await render(gate);
+    await expect.element(screen.getByText("Wants a page")).toBeInTheDocument();
+    expect(mounted).not.toHaveBeenCalled();
+    await screen.getByRole("button", { name: "Show page" }).click();
+    await expect.element(screen.getByTestId("loaded-media")).toBeInTheDocument();
+    // A remounted row (scrolled away and back) keeps the approval for the same content.
+    await screen.rerender(<span>elsewhere</span>);
+    await screen.rerender(gate);
+    await expect.element(screen.getByTestId("loaded-media")).toBeInTheDocument();
+    await screen.rerender(
+      <RemoteContentGate approvalKey="mcp-app:b" message="Another page" actionLabel="Show page">
+        <Content />
+      </RemoteContentGate>,
+    );
+    await expect.element(screen.getByRole("button", { name: "Show page" })).toBeInTheDocument();
+  });
+
+  it("never loads remote connector logos, and loads PR avatars only after opt-in", async () => {
+    using _preference = resetMediaPreference();
+    await using screen = await render(
+      <TimelineRowCtx value={{ resolvedTheme: "light" } as never}>
+        <ToolActivityIconView
+          icon={{
+            _tag: "themed-logo",
+            logoUrl: "https://www.google.com/s2/favicons?domain=example.invalid&sz=64",
+          }}
+          fallbackName="bot"
+          className="size-4"
+          muted={false}
+        />
+        <PullRequestActorAvatar
+          actor={{ login: "octo", name: null, avatarUrl: "https://example.invalid/octo.png" }}
+        />
+      </TimelineRowCtx>,
+    );
+    expect(screen.container.querySelector("img")).toBeNull();
+    // The unreachable avatar fails and falls back at once, so record images as they mount.
+    const loaded: Array<string | null> = [];
+    const observer = new MutationObserver(() => {
+      for (const image of screen.container.querySelectorAll("img")) {
+        loaded.push(image.getAttribute("src"));
+      }
+    });
+    observer.observe(screen.container, { childList: true, subtree: true });
+    using _observer = { [Symbol.dispose]: () => observer.disconnect() };
+    setAutomaticRemoteMedia(true);
+    await vi.waitFor(() => expect(loaded).toContain("https://example.invalid/octo.png"));
+    expect(new Set(loaded)).toEqual(new Set(["https://example.invalid/octo.png"]));
+  });
+
+  it("keeps a linked web image out of the image viewer until external media is allowed", () => {
+    using _preference = resetMediaPreference();
+    const scope = document.createElement("div");
+    scope.className = "chat-markdown";
+    const first = document.createElement("img");
+    const link = document.createElement("a");
+    link.setAttribute("href", "https://example.invalid/full.png");
+    const second = document.createElement("img");
+    link.append(second);
+    scope.append(first, link);
+    using _scope = { [Symbol.dispose]: () => scope.remove() };
+    document.body.append(scope);
+    const selected = { src: "/api/attachments/first.png", name: "first" };
+    markdownImageItems.set(first, selected);
+    markdownImageItems.set(second, { src: "/api/attachments/second.png", name: "second" });
+    expect(markdownImageGallery(first, selected).images[1]?.src).toBe(
+      "/api/attachments/second.png",
+    );
+    setAutomaticRemoteMedia(true);
+    expect(markdownImageGallery(first, selected).images[1]?.src).toBe(
+      "https://example.invalid/full.png",
+    );
   });
 
   it("supports deliberate opt-in and returns to click-to-load when switched off", async () => {

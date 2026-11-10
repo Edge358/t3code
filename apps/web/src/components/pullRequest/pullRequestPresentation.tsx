@@ -25,6 +25,7 @@ import { Children, type CSSProperties, isValidElement, type ReactNode, useState 
 import { cn } from "~/lib/utils";
 
 import { Badge } from "../ui/badge";
+import { useAutomaticRemoteMedia } from "../chat/RemoteMediaConsent";
 import { InlineButton } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { PullRequestReviewOutcome } from "./pullRequestDetail.logic";
@@ -399,7 +400,8 @@ export function PullRequestActorAvatar({
   className?: string;
 }) {
   const login = actor?.login ?? "ghost";
-  const avatarUrl = actor?.avatarUrl ?? null;
+  const automaticRemoteMedia = useAutomaticRemoteMedia();
+  const avatarUrl = automaticRemoteMedia ? (actor?.avatarUrl ?? null) : null;
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
   return avatarUrl === null || failedAvatarUrl === avatarUrl ? (
     <span

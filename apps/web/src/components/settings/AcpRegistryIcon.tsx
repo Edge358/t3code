@@ -7,6 +7,8 @@ import {
   officialAcpRegistryIconUrlForAgentId,
 } from "@t3tools/contracts";
 
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
+
 import { cn } from "../../lib/utils";
 import { ACPRegistryIcon } from "../Icons";
 
@@ -30,7 +32,7 @@ async function checkedIconBlob(response: Response): Promise<Blob> {
 }
 
 export function loadCachedAcpRegistryIcon(iconUrl: string): Promise<Blob> {
-  if (resolveOfficialAcpRegistryIconUrl(iconUrl) !== iconUrl) {
+  if (!privateBuildPolicy.remoteIcons || resolveOfficialAcpRegistryIconUrl(iconUrl) !== iconUrl) {
     return Promise.reject(new Error("ACP registry icon URL was not allowed."));
   }
   const pending = inFlightIcons.get(iconUrl);
@@ -106,7 +108,7 @@ export function AcpRegistryAgentIcon({
   readonly fallbackClassName?: string;
 }) {
   const colorFilterId = useId();
-  const iconUrl = resolveOfficialAcpRegistryIconUrl(icon);
+  const iconUrl = privateBuildPolicy.remoteIcons ? resolveOfficialAcpRegistryIconUrl(icon) : null;
   // Render only after the load pipeline resolves, so the fallback icon does
   // not flash a broken image.
   const source = AsyncResult.getOrElse(

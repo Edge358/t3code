@@ -9,6 +9,7 @@ import { Button } from "../ui/button";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { HtmlRenderFrame } from "./HtmlRenderFrame";
 import { McpAppFrame } from "./McpAppFrame";
+import { RemoteContentGate } from "./RemoteMediaConsent";
 import { checkpointFileTotals } from "@t3tools/client-runtime/state/thread-checkpoints";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { useFileContextMenuHandler } from "../../fileContextMenu";
@@ -74,13 +75,6 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
             projectedItem={row.projectedItem}
             message={row.message}
             showCopyButton={row.showAssistantCopyButton}
-            copyStreaming={row.assistantCopyStreaming}
-          />
-        ) : row.showAssistantTimestamp ? (
-          <AssistantMessageMeta
-            className="mt-1.5"
-            message={row.message}
-            showCopyButton={false}
             copyStreaming={row.assistantCopyStreaming}
           />
         ) : null}
@@ -261,18 +255,26 @@ export function HtmlRenderTimelineRow({
   const { onAppFullscreenChange } = ctx;
   const onFullscreenChange = (fullscreen: boolean) => onAppFullscreenChange(row.id, fullscreen);
 
-  if (ctx.renderHtmlRender) {
-    return <div className="min-w-0 px-1">{ctx.renderHtmlRender(row)}</div>;
-  }
+  // Agent-made pages run unrestricted network requests, so they ask like tool pages.
   return (
     <div className="min-w-0 px-1">
-      <HtmlRenderFrame
-        key={row.htmlRender.attachmentId}
-        environmentId={ctx.activeThreadEnvironmentId}
-        htmlRender={row.htmlRender}
-        threadRef={ctx.threadRef ?? undefined}
-        onFullscreenChange={onFullscreenChange}
-      />
+      <RemoteContentGate
+        approvalKey={`html-render:${row.htmlRender.attachmentId}`}
+        message="The agent made an interactive page. It can contact outside sites."
+        actionLabel="Show page"
+      >
+        {ctx.renderHtmlRender ? (
+          ctx.renderHtmlRender(row)
+        ) : (
+          <HtmlRenderFrame
+            key={row.htmlRender.attachmentId}
+            environmentId={ctx.activeThreadEnvironmentId}
+            htmlRender={row.htmlRender}
+            threadRef={ctx.threadRef ?? undefined}
+            onFullscreenChange={onFullscreenChange}
+          />
+        )}
+      </RemoteContentGate>
     </div>
   );
 }
@@ -280,21 +282,34 @@ export function HtmlRenderTimelineRow({
 export function McpAppTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "mcp-app" }> }) {
   const ctx = use(TimelineRowCtx);
   const { awaitingUser } = use(TimelineRowActivityCtx);
+  const domains = [
+    ...(row.mcpApp.csp?.connectDomains ?? []),
+    ...(row.mcpApp.csp?.resourceDomains ?? []),
+    ...(row.mcpApp.csp?.frameDomains ?? []),
+  ];
 
   return (
     <div className="min-w-0 px-1">
-      <McpAppFrame
-        key={row.mcpApp.attachmentId}
-        environmentId={ctx.activeThreadEnvironmentId}
-        threadId={row.sourceThreadId}
-        conversationThreadId={ctx.threadRef?.threadId ?? row.sourceThreadId}
-        itemId={row.itemId}
-        revision={row.revision}
-        app={row.mcpApp}
-        onSendMessage={ctx.onSendAppMessage}
-        awaitingUser={awaitingUser}
-        onFullscreenChange={(fullscreen) => ctx.onAppFullscreenChange(row.id, fullscreen)}
-      />
+      <RemoteContentGate
+        approvalKey={`mcp-app:${row.mcpApp.attachmentId}`}
+        message={`${row.mcpApp.server} wants to show an interactive page here. It can contact ${
+          domains.length > 0 ? [...new Set(domains)].join(", ") : "outside sites"
+        }.`}
+        actionLabel="Show page"
+      >
+        <McpAppFrame
+          key={row.mcpApp.attachmentId}
+          environmentId={ctx.activeThreadEnvironmentId}
+          threadId={row.sourceThreadId}
+          conversationThreadId={ctx.threadRef?.threadId ?? row.sourceThreadId}
+          itemId={row.itemId}
+          revision={row.revision}
+          app={row.mcpApp}
+          onSendMessage={ctx.onSendAppMessage}
+          awaitingUser={awaitingUser}
+          onFullscreenChange={(fullscreen) => ctx.onAppFullscreenChange(row.id, fullscreen)}
+        />
+      </RemoteContentGate>
     </div>
   );
 }

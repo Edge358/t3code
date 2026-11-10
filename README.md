@@ -29,10 +29,10 @@ Details and reasons: [Custom changes](CUSTOM_CHANGES.md) ·
 
 ## Status
 
-- Based on T3 Code v0.1.6 plus Theo's changes through November 2, 2026. It catches up
-  with Theo's releases from time to time.
+- Based on T3 Code v0.1.8. It catches up with Theo's releases from time to time.
 - Windows only, tested on one machine.
-- No download is offered. If I gave you an installer,
+- Download the Windows installer from
+  [Releases](https://github.com/Edge358/t3code/releases).
   [Start Here](START_HERE.md) walks you through setup.
 
 ## Suggestions for T3 Code

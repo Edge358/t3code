@@ -285,18 +285,18 @@ These defaults apply when a saved field is absent, including an older profile
 missing the field. Explicit saved values are not forcibly overwritten. Fixed
 privacy restrictions are a separate mechanism, documented in the privacy review.
 
-| Setting                                                              | Upstream default       | Custom default |
-| -------------------------------------------------------------------- | ---------------------- | -------------- |
-| Project-organized sidebar (`boringSidebarEnabled`)                   | Off                    | On             |
-| Auto-settle inactive threads                                         | After 3 days           | Off (`null`)   |
-| Auto-settle merged threads                                           | On                     | Off            |
-| Continue threads after server restarts                               | On                     | Off            |
-| Delete old browser artifacts                                         | Off                    | After 30 days  |
-| Delete old rotated logs                                              | Off                    | After 30 days  |
-| Provider update checks / model-manifest refresh setting              | On                     | Off            |
-| Right-click menu size (new)                                          | No independent control | 18px           |
-| Read replies aloud / speech address (new)                            | Not present            | Off / blank    |
-| Automatic external conversation media loading (new local preference) | No consent control     | Off            |
+| Setting                                                               | Upstream default       | Custom default |
+| --------------------------------------------------------------------- | ---------------------- | -------------- |
+| Project-organized sidebar (`boringSidebarEnabled`)                    | Off                    | On             |
+| Auto-settle inactive threads                                          | After 3 days           | Off (`null`)   |
+| Auto-settle merged threads                                            | On                     | Off            |
+| Continue threads after server restarts                                | On                     | Off            |
+| Delete old browser artifacts                                          | Off                    | After 30 days  |
+| Delete old rotated logs                                               | Off                    | After 30 days  |
+| Provider update checks / model-manifest refresh setting               | On                     | Off            |
+| Right-click menu size (new)                                           | No independent control | 18px           |
+| Read replies aloud / speech address (new)                             | Not present            | Off / blank    |
+| Automatic external media and interactive pages (new local preference) | No consent control     | Off            |
 
 Worktree cleanup remains off. Browser-artifact expiry can make old capture links
 stop opening; current logs are kept. These settings do not add conversation or
@@ -386,8 +386,8 @@ contracts IPC, desktop channels/preload/handlers.
 
 The native desktop backend sets `T3CODE_APP_SPEECH_MANAGED=1`. Two pre-existing
 personal speech adapters were separately updated to honor this marker and avoid
-duplicate audio from provider hooks, including generated titles. Their backups
-and exact locations are in the private record. Those adapters and the speech
+duplicate audio from provider hooks, including generated titles. Their exact
+locations are in the private record. Those adapters and the speech
 service are **not included in this repository**. Other users' speech hooks do not
 automatically honor the marker. Ordinary terminal sessions do not receive it
 through this app change. Remote/WSL behavior has not been validated.
@@ -404,7 +404,11 @@ The [privacy review](docs/custom-build/privacy-review.md) is the detailed ledger
 The custom policy disables T3 reporting, cloud/relay services, automatic external
 icons, app auto-updates, automatic pricing downloads, periodic provider checks,
 and the GitHub-star prompt. Claude child processes receive optional-traffic
-opt-outs. Remote conversation images require consent by default.
+opt-outs. Remote conversation images require consent by default. The same
+External media preference and a Show page prompt cover MCP tool pages,
+agent-made HTML pages and pull request videos; pull request avatars load only
+when that preference is on. Provider-supplied connector logos and ACP registry
+icons are treated as external icons and do not load.
 
 Claude launches identify as `t3-code` by default, replacing an inherited host
 entrypoint. Explicit provider-instance environment settings override that default;
@@ -520,7 +524,10 @@ mini-player state for that thread. This does not broaden client-state cleanup to
 agent-initiated or other-client deletion paths.
 
 Cleanup removes recorded local Codex/Claude histories, empty Claude session-env
-folders, T3 provider logs and rotations, attachments, thread-bound scheduled tasks,
+folders (never the Claude project folder itself, which can hold its `memory`),
+T3 provider logs and rotations (including logs written under the shorter shared
+name that helper threads used before v0.1.8, unless a retained thread also wrote
+there), attachments, thread-bound scheduled tasks,
 terminal history, and owned Git checkpoint refs. Shared resources needed by retained
 conversations are protected. Project files, normal Git branches/tags/commits, and
 GitHub repositories are untouched. Archive, Unarchive, Settle, and project removal
@@ -751,12 +758,13 @@ output folder. The app can remain open while building there. The default output
 is `.local/builds/current`, so supply an explicit output folder to preserve it:
 
 ```powershell
-pnpm.cmd run dist:desktop:win:x64 --build-version 0.1.6-private.<n> --output-dir .local/builds/candidate-<n>
+pnpm.cmd run dist:desktop:win:x64 --build-version 0.1.8-private.<n> --output-dir .local/builds/candidate-<n>
 ```
 
 The Git-ignored `.local` directory contains all persistent private build and
 runtime material. Windows packaging copies the complete `win-unpacked` app along
-with the installer. Staging runs under `build/desktop-staging` and is removed
+with the installer. Its payload check allows 96 loose files instead of upstream's 80:
+v0.1.8's built-in dictation libraries plus this build's extra server chunks produce 89. Staging runs under `build/desktop-staging` and is removed
 automatically unless `--keep-stage` is explicitly requested. Mock output uses
 `.local/builds/mock`; `--output-dir` still overrides the destination.
 

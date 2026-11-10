@@ -1,4 +1,4 @@
-import * as ProjectionMaintenance from "./ProjectionMaintenance.ts";
+import * as ProjectionReplay from "./testkit/ProjectionReplay.ts";
 import * as EventStore from "./EventStore.ts";
 import * as ThreadResourceCleanup from "./ThreadResourceCleanup.ts";
 import { ResourceCleanupError } from "./ResourceCleanupService.ts";
@@ -152,7 +152,7 @@ it.effect.each([
     const db = SqlitePersistence.layerMemory;
     const layer = Layer.mergeAll(
       db,
-      ProjectionMaintenance.layer.pipe(
+      ProjectionReplay.layer.pipe(
         Layer.provide(Layer.mergeAll(EventStore.layer, ProjectionStore.layer)),
         Layer.provide(db),
       ),
@@ -706,10 +706,9 @@ it.effect.each([
           yield* sql`SELECT rowid FROM orchestration_v2_message_search WHERE orchestration_v2_message_search MATCH 'uniquedeletionphrase'`,
           [],
         );
-        const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
-        const verification = yield* maintenance.verify;
-        assert.isTrue(verification.valid);
-        assert.isTrue((yield* maintenance.rebuild).valid);
+        const replay = yield* ProjectionReplay.ProjectionReplay;
+        assert.isTrue((yield* replay.verify).valid);
+        assert.isTrue((yield* replay.rebuild).valid);
         assert.isTrue((yield* projections.getThread(target)).historyDeletion?.purged);
         assert.isNull((yield* projections.getThread(neighbor)).deletedAt);
         assert.deepEqual(

@@ -3,6 +3,7 @@ import { mediaUrlReference } from "@t3tools/client-runtime/media-reference";
 import type { ExpandedImageItem, ExpandedImagePreview } from "./ExpandedImagePreview";
 import { resolveExternalWebLinkHost } from "./externalLinkContextMenu";
 import { resolveProtocolRelativeMediaUrl } from "../media/mediaContent";
+import { automaticRemoteMediaEnabled } from "./RemoteMediaConsent";
 
 export const markdownImageItems = new WeakMap<Element, ExpandedImageItem>();
 
@@ -19,8 +20,11 @@ export function markdownImageGallery(
     const link = image.closest("a");
     const href = link?.getAttribute("href") ?? "";
     if (link && mediaKindFromPath(href) !== "image") continue;
+    // A linked web image would load in the viewer without the inline consent prompt.
     const linkedSource =
-      resolveExternalWebLinkHost(href) !== null ? resolveProtocolRelativeMediaUrl(href) : null;
+      resolveExternalWebLinkHost(href) !== null && automaticRemoteMediaEnabled()
+        ? resolveProtocolRelativeMediaUrl(href)
+        : null;
     const reference = mediaUrlReference(href);
     const item = linkedSource
       ? {

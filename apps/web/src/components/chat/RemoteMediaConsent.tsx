@@ -1,4 +1,10 @@
-import { useState, useSyncExternalStore, type ComponentProps, type ComponentType } from "react";
+import {
+  useState,
+  useSyncExternalStore,
+  type ComponentProps,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import type { ExtraProps } from "react-markdown";
 import { normalizeMarkdownLinkDestination } from "@t3tools/shared/markdownLinks";
 import { Button } from "../ui/button";
@@ -24,6 +30,11 @@ function subscribe(listener: () => void) {
   };
 }
 
+/** For non-React code; components use `useAutomaticRemoteMedia`. */
+export function automaticRemoteMediaEnabled(): boolean {
+  return readPreference();
+}
+
 export function useAutomaticRemoteMedia() {
   return useSyncExternalStore(subscribe, readPreference, () => false);
 }
@@ -38,6 +49,42 @@ export function setAutomaticRemoteMedia(enabled: boolean) {
 }
 
 type MarkdownImageProps = ComponentProps<"img"> & ExtraProps;
+
+export function isRemoteMediaSource(source: string): boolean {
+  return /^(?:https?:|[\\/]{2})/i.test(source.trim());
+}
+
+// Approvals last for this window session, so scrolling a row away and back does not ask again.
+const approvedContent = new Set<string>();
+
+/** Asks before mounting content that can contact outside hosts, unless automatic loading is on. */
+export function RemoteContentGate(props: {
+  readonly approvalKey: string;
+  readonly message: string;
+  readonly actionLabel: string;
+  readonly children: ReactNode;
+}) {
+  const automatic = useAutomaticRemoteMedia();
+  const [approvedKey, setApprovedKey] = useState<string | null>(null);
+  // Keyed, so content that replaces approved content in the same slot still asks.
+  const approved = approvedKey === props.approvalKey || approvedContent.has(props.approvalKey);
+  if (automatic || approved) return props.children;
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded border border-border/40 px-3 py-2 text-xs">
+      <span className="min-w-0 flex-1">{props.message}</span>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => {
+          approvedContent.add(props.approvalKey);
+          setApprovedKey(props.approvalKey);
+        }}
+      >
+        {props.actionLabel}
+      </Button>
+    </div>
+  );
+}
 
 /** Gate before mounting the renderer: asset/proxy hooks must not fetch ahead of consent. */
 export function withRemoteMediaConsent(RenderImage: ComponentType<MarkdownImageProps>) {
@@ -56,7 +103,8 @@ export function withRemoteMediaConsent(RenderImage: ComponentType<MarkdownImageP
           ? props.src
           : "",
     );
-    const remote = /^(?:https?:)?\/\//i.test(source.trim());
+    // Browsers resolve "https:host" and "\host" to remote URLs too.
+    const remote = isRemoteMediaSource(source);
     if (remote && !automatic && approvedSource !== source) {
       return (
         <span className="inline-flex items-center gap-2 rounded border border-border/40 px-2 py-1 text-xs">

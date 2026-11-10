@@ -2,11 +2,19 @@ import type { ThreadId } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 
+export interface RemoveThreadLogOptions {
+  /** Keep the pre-hash log, which still holds a retained thread's history. */
+  readonly keepSharedLegacyLog?: boolean;
+}
+
 export interface EventNdjsonLogger {
   readonly filePath: string;
   readonly write: (event: unknown, threadId: ThreadId | null) => Effect.Effect<void>;
   readonly close: () => Effect.Effect<void>;
-  readonly removeThread?: (threadId: ThreadId) => Effect.Effect<void, Error>;
+  readonly removeThread?: (
+    threadId: ThreadId,
+    options?: RemoveThreadLogOptions,
+  ) => Effect.Effect<void, Error>;
 }
 
 export class ProviderEventLoggers extends Context.Service<

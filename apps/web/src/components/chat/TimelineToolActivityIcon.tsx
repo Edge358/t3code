@@ -1,6 +1,8 @@
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
 import { type ToolActivityIcon } from "@t3tools/contracts";
 import { toolActivityFaviconUrl } from "@t3tools/shared/favicon";
+import { privateBuildPolicy } from "@t3tools/shared/privateBuildPolicy";
+import { isRemoteMediaSource } from "./RemoteMediaConsent";
 import { getProjectFaviconCacheKey } from "@t3tools/shared/projectFavicon";
 import { use, useState } from "react";
 import { T3Wordmark } from "../T3Wordmark";
@@ -107,6 +109,10 @@ export function ToolActivityIconView(props: {
       resolvedTheme === "dark"
         ? (props.icon.logoUrlDark ?? props.icon.logoUrl)
         : props.icon.logoUrl;
+    // Provider-supplied connector logos are remote icons, often favicon-service URLs.
+    if (!privateBuildPolicy.remoteIcons && isRemoteMediaSource(src)) {
+      return <WorkEntryIcon name={props.fallbackName} className={fallbackClassName} />;
+    }
     return (
       <ToolActivityImageIcon
         key={src}

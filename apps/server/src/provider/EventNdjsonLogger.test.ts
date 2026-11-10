@@ -19,6 +19,7 @@ import { toSafeThreadAttachmentSegment } from "../attachmentStore.ts";
 import {
   makeEventNdjsonLogStore,
   type PendingRecord,
+  resolveThreadSegment,
   writeBatchedMessages,
 } from "./EventNdjsonLogger.ts";
 
@@ -71,21 +72,29 @@ it.layer(NodeServices.layer)("EventNdjsonLogger", (it) => {
         const prefix = "helper-".padEnd(80, "a");
         const oldHelper = ThreadId.make(`${prefix}-old`);
         const newHelper = ThreadId.make(`${prefix}-new`);
-        assert.equal(
-          toSafeThreadAttachmentSegment(oldHelper),
-          toSafeThreadAttachmentSegment(newHelper),
-        );
+        const legacySegment = toSafeThreadAttachmentSegment(oldHelper) ?? "";
+        assert.equal(legacySegment, toSafeThreadAttachmentSegment(newHelper));
+        const legacyLog = ownedLogPath(base, legacySegment);
+        yield* fs.writeFileString(legacyLog, "pre-hash shared transcript");
+        yield* fs.writeFileString(`${legacyLog}.1`, "pre-hash rotated transcript");
         yield* store.logger("native").write({ text: "old helper" }, oldHelper);
+        yield* store.removeThread(oldHelper, { keepSharedLegacyLog: true });
+        assert.isTrue(yield* fs.exists(legacyLog));
         yield* store.removeThread(oldHelper);
+        assert.isFalse(yield* fs.exists(legacyLog));
+        assert.isFalse(yield* fs.exists(`${legacyLog}.1`));
         yield* store.logger("native").write({ text: "new helper" }, newHelper);
         yield* store.logger("native").write({ text: "late old helper" }, oldHelper);
         yield* store.close();
         assert.isFalse(yield* fs.exists(ownedLogPath(base, deleted)));
         assert.isFalse(yield* fs.exists(`${ownedLogPath(base, deleted)}.1`));
         assert.include(yield* fs.readFileString(ownedLogPath(base, kept)), "keep this");
-        const helperLog = yield* fs.readFileString(ownedLogPath(base, prefix));
+        const helperLog = yield* fs.readFileString(
+          ownedLogPath(base, resolveThreadSegment(newHelper)),
+        );
         assert.include(helperLog, "new helper");
         assert.notInclude(helperLog, "old helper");
+        assert.isFalse(yield* fs.exists(ownedLogPath(base, resolveThreadSegment(oldHelper))));
       }),
   );
   it.effect("summarizes circular events without exposing their contents in diagnostics", () => {
@@ -186,6 +195,39 @@ it.layer(NodeServices.layer)("EventNdjsonLogger", (it) => {
               payload: '{"type":"item.completed","id":"canonical-event"}',
             },
           ],
+        );
+      } finally {
+        NodeFS.rmSync(tempDir, { recursive: true, force: true });
+      }
+    }),
+  );
+
+  it.effect("keeps long thread ids that share a prefix in separate files", () =>
+    Effect.gen(function* () {
+      const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-provider-log-"));
+      const basePath = NodePath.join(tempDir, "events.log");
+      const prefix =
+        "thread:delegated-task:command%3Amcp%3A00000000-0000-4000-8000-000000000000%3Adelegate-task%3A";
+
+      try {
+        const store = yield* makeEventNdjsonLogStore(basePath, { batchWindowMs: 0 });
+        const logger = store.logger("native");
+        yield* logger.write({ id: "first" }, ThreadId.make(`${prefix}review-the-diff`));
+        yield* logger.write({ id: "second" }, ThreadId.make(`${prefix}write-the-tests`));
+        yield* store.close();
+
+        const files = NodeFS.readdirSync(tempDir);
+        assert.equal(files.length, 2);
+        assert.deepEqual(
+          files
+            .map((name) =>
+              NodeFS.readFileSync(NodePath.join(tempDir, name), "utf8")
+                .trim()
+                .split("\n")
+                .map((line) => parseLogLine(line).payload),
+            )
+            .toSorted(),
+          [['{"id":"first"}'], ['{"id":"second"}']],
         );
       } finally {
         NodeFS.rmSync(tempDir, { recursive: true, force: true });

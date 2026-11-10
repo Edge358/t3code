@@ -56,7 +56,7 @@ it("saved empty drafts stay in their folders without loading reserved server thr
     title: "second",
     workspaceRoot: "/workspace/second",
   };
-  using _environment = installFakeEnvironment([], [projectA, projectB]);
+  using _environment = installFakeEnvironment([], { projects: [projectA, projectB] });
   const keyA = getProjectOrderKey({ ...projectA, environmentId: ENVIRONMENT_ID });
   const keyB = getProjectOrderKey({ ...projectB, environmentId: ENVIRONMENT_ID });
   useUiStateStore.setState({
@@ -105,21 +105,36 @@ it("saved empty drafts stay in their folders without loading reserved server thr
 
   const folderA = page.getByTestId("sidebar-project-folder").filter({ hasText: "render" });
   const folderB = page.getByTestId("sidebar-project-folder").filter({ hasText: "second" });
-  await expect.element(folderA.getByRole("treeitem")).toHaveAttribute("aria-expanded", "true");
-  await expect.element(folderB.getByRole("treeitem")).toHaveAttribute("aria-expanded", "false");
+  await expect
+    .element(folderA.getByRole("button").first())
+    .toHaveAttribute("aria-expanded", "true");
+  await expect
+    .element(folderB.getByRole("button").first())
+    .toHaveAttribute("aria-expanded", "false");
   await act(() => router.navigate({ to: "/draft/$draftId", params: { draftId: draftB } }));
-  await expect.element(folderB.getByRole("treeitem")).toHaveAttribute("aria-expanded", "true");
-  await expect.element(folderA.getByRole("treeitem")).toHaveAttribute("aria-expanded", "true");
-  await folderA.getByRole("treeitem").click();
-  await expect.element(folderA.getByRole("treeitem")).toHaveAttribute("aria-expanded", "false");
+  await expect
+    .element(folderB.getByRole("button").first())
+    .toHaveAttribute("aria-expanded", "true");
+  await expect
+    .element(folderA.getByRole("button").first())
+    .toHaveAttribute("aria-expanded", "true");
+  await folderA.getByRole("button").first().click();
+  await expect
+    .element(folderA.getByRole("button").first())
+    .toHaveAttribute("aria-expanded", "false");
   await act(() => router.navigate({ to: "/draft/$draftId", params: { draftId } }));
-  await expect.element(folderA.getByRole("treeitem")).toHaveAttribute("aria-expanded", "true");
-  await expect.element(folderB.getByRole("treeitem")).toHaveAttribute("aria-expanded", "true");
+  await expect
+    .element(folderA.getByRole("button").first())
+    .toHaveAttribute("aria-expanded", "true");
+  await expect
+    .element(folderB.getByRole("button").first())
+    .toHaveAttribute("aria-expanded", "true");
 
   const transfer = new DataTransfer();
   await act(() => {
     folderA
-      .getByRole("treeitem")
+      .getByRole("button")
+      .first()
       .element()
       .dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
     folderB
@@ -142,7 +157,7 @@ it("saved empty drafts stay in their folders without loading reserved server thr
   await act(() =>
     persistClientSettingsPatch({ sidebarProjectSortOrder: "updated_at" }, async () => {}),
   );
-  await expect.element(folderA.getByRole("treeitem")).toHaveAttribute("draggable", "false");
+  await expect.element(folderA.getByRole("button").first()).toHaveAttribute("draggable", "false");
   await act(() =>
     folderA
       .element()
@@ -163,10 +178,14 @@ it("saved empty drafts stay in their folders without loading reserved server thr
   await expect
     .element(page.getByRole("heading", { name: "Renamed from sidebar", exact: true }))
     .toBeVisible();
-  await folderA.getByRole("treeitem").click();
-  await expect.element(folderA.getByRole("treeitem")).toHaveAttribute("aria-expanded", "false");
+  await folderA.getByRole("button").first().click();
+  await expect
+    .element(folderA.getByRole("button").first())
+    .toHaveAttribute("aria-expanded", "false");
   await folderA.getByRole("button", { name: "New thread in render" }).click();
-  await expect.element(folderA.getByRole("treeitem")).toHaveAttribute("aria-expanded", "true");
+  await expect
+    .element(folderA.getByRole("button").first())
+    .toHaveAttribute("aria-expanded", "true");
   expect(useComposerDraftStore.getState().getDraftSession(draftId)?.title).toBe(
     "Renamed from sidebar",
   );

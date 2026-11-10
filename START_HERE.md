@@ -12,15 +12,20 @@ both of them in T3.
 
 ## Before you begin
 
-Have your ChatGPT and Claude sign-in details handy, along with access to the email
-or phone you use for verification. Your accounts must include access to Codex and
-Claude Code. Installing the tools does not purchase a subscription or add usage
-credits. This guide uses account sign-in rather than API keys.
+This guide sets up the two agents I use: **Codex** (from OpenAI, the ChatGPT
+company) and **Claude Code** (from Anthropic). Set up one or both. T3 Code works
+with other agents too; add those later in **Settings → Providers**.
 
-Use an Intel/AMD 64-bit Windows computer for this custom installer and an internet
-connection for provider installation, sign-in, and conversations. Git for Windows
-is useful for project history and Claude's Bash tools; current Claude Code can
-use PowerShell without it. See [Anthropic's Windows setup](https://code.claude.com/docs/en/setup#install-on-native-windows).
+You need:
+
+- A subscription for each agent you want: ChatGPT for Codex, Claude for Claude
+  Code. Installing the tools does not buy one.
+- Your sign-in details, and the email or phone that receives your verification
+  codes.
+- A Windows computer with an Intel or AMD processor, and an internet connection.
+
+[Git for Windows](https://git-scm.com/downloads/win) is recommended. T3 uses it to
+track changes in your projects.
 
 The commands below install the command-line tools that T3 uses. Having only the
 ChatGPT/Codex or Claude desktop app does not establish that these tools are ready.
@@ -130,7 +135,8 @@ Ctrl+C. Your everyday conversations will happen in T3.
 
 Use the installer for the version you want:
 
-- **This custom Windows build:** use the installer supplied with this build. Its
+- **This custom Windows build:** download the installer from this fork's
+  [Releases](https://github.com/Edge358/t3code/releases) page. Its
   name starts with `T3-Code-` and ends with `-x64.exe`. It is for Intel/AMD 64-bit
   Windows computers. You only need that installer file, not the source-code folder.
 - **The standard T3 release from Theo's project:** use the Windows installer from
@@ -143,8 +149,11 @@ Use the installer for the version you want:
 2. Double-click the installer and follow any on-screen prompts.
 3. Open **T3 Code** using its desktop shortcut or by searching for it in Start.
    The shortcut may be named **T3 Code (Beta)**.
-4. Follow the welcome screens, then open the **gear icon → Providers** in Settings.
-5. Check that Codex and Claude are enabled and recognized. For Codex, use the
+4. The first screen is **Welcome to T3 Code**. It may offer to import projects from
+   your earlier Codex and Claude Code conversations. That is optional: click
+   **Select none** to skip it, then **Start**.
+5. Open the **gear icon → Providers** in Settings.
+6. Check that Codex and Claude are enabled and recognized. For Codex, use the
    existing CLI/login option when offered, since you already signed in above.
 
 If T3 was open while you installed the providers, close and reopen it first.
@@ -172,6 +181,25 @@ For daily use, open the T3 desktop shortcut. PowerShell and the providers' own
 desktop apps do not need to stay open. T3 starts the tools it needs. You may need
 to sign in again later if an account's authorization expires or changes.
 
+## Updating from an older version
+
+This works whether you have an older version of this build or the regular T3 Code.
+You do not need to uninstall anything.
+
+1. Close T3 Code.
+2. Download the new installer from
+   [Releases](https://github.com/Edge358/t3code/releases).
+3. Double-click it. It installs over what you have.
+4. Open T3 Code. Your projects, conversations and settings are still there.
+
+**You cannot go back afterward.** The new version updates your saved conversations
+to a newer format that an older version cannot use. If you think you might want to
+go back, copy the `.t3` folder inside your user folder (`C:\Users\YourName\.t3`)
+somewhere safe before you update.
+
+If your regular T3 Code is newer than v0.1.8, do not install this build over it.
+That would be going back.
+
 ## If something does not work
 
 | What you see                                         | What to do                                                                                                                                                                                                                              |
@@ -179,9 +207,9 @@ to sign in again later if an account's authorization expires or changes.
 | `codex` or `claude` is not recognized                | Close PowerShell, reopen it from Start, and try the version command again. If it still fails, check the installer's final instructions or the provider's setup guide; Windows may not have added its command folder to the search path. |
 | The sign-in page uses the wrong account              | Choose the intended account in the browser, or sign out of the wrong account there and repeat the provider's sign-in command.                                                                                                           |
 | You signed in, but T3 says a provider is unavailable | Restart T3 and check **Settings → Providers** for its specific message. Installation and sign-in must be under the Windows account that runs T3.                                                                                        |
-| T3 reports an incompatible provider version          | Follow the version guidance in **Settings → Providers** or ask the person who supplied your build.                                                                                                                                      |
+| T3 reports an incompatible provider version          | Follow the version guidance in **Settings → Providers**.                                                                                                                                                                                |
 | A message says Git is missing                        | Git is a separate tool used for project history. Install [Git for Windows](https://git-scm.com/downloads/win), then restart T3.                                                                                                         |
-| Windows blocks the T3 installer                      | This custom installer is unsigned. Ask the person who supplied it to confirm the file and next steps; do not turn off Windows security.                                                                                                 |
+| Windows blocks the T3 installer                      | This installer is unsigned, so Windows warns about it. Choose **More info**, then **Run anyway**. Do not turn off Windows security.                                                                                                     |
 | The text is too small                                | Open **Settings → Appearance** and adjust Interface and Monospace/Code sizes. Those are personal preferences saved on this computer.                                                                                                    |
 
 For help, share the exact error message and which step you reached. Leave out
@@ -193,3 +221,9 @@ T3 also offers a managed **Connect with ChatGPT** path; this guide uses an exist
 Codex CLI login so both providers follow the same install-then-sign-in sequence.
 
 Provider instructions checked against official documentation on November 1, 2026.
+
+## Optional: Python
+
+Agents often write small Python scripts for data and file tasks. If you don't have
+it, get it from [python.org/downloads](https://www.python.org/downloads/). T3 itself
+does not need it.

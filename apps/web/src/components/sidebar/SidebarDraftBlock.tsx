@@ -81,8 +81,8 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   return (
     <li className="list-none py-0.5">
       <div
-        role="treeitem"
-        tabIndex={-1}
+        role="button"
+        tabIndex={0}
         data-sidebar-row={`draft:${draftId}`}
         data-sidebar-parent={props.parentRowId}
         aria-label={accessibility.label}

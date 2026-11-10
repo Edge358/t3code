@@ -1,5 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off -- Paths refer only to scoped disposable fixtures.
 import * as NodePath from "node:path";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import { CheckpointScopeId, ThreadId } from "@t3tools/contracts";
@@ -13,7 +14,8 @@ import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
 import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as ServerConfig from "../config.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
-import { makeEventNdjsonLogStore } from "../provider/EventNdjsonLogger.ts";
+import { toSafeThreadAttachmentSegment } from "../attachmentStore.ts";
+import { makeEventNdjsonLogStore, resolveThreadSegment } from "../provider/EventNdjsonLogger.ts";
 import { checkpointRefForScopeOrdinal } from "./CheckpointService.ts";
 import * as ThreadResourceCleanup from "./ThreadResourceCleanup.ts";
 
@@ -23,7 +25,7 @@ const checkpointLayer = CheckpointStore.layer.pipe(
 );
 const base = Layer.mergeAll(checkpointLayer, vcsLayer, Sqlite.layerMemory).pipe(
   Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "t3-resource-delete-" })),
-  Layer.provideMerge(NodeServices.layer),
+  Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
 );
 
 it.effect(
@@ -56,6 +58,14 @@ it.effect(
       yield* fs.writeFileString(NodePath.join(directory, "keep.txt"), "working tree stays intact");
       const target = ThreadId.make("deleted");
       const kept = ThreadId.make("kept");
+      // Helper ids longer than the segment limit once shared one cut log name.
+      const helperPrefix = "helper-".padEnd(80, "a");
+      const deletedHelper = ThreadId.make(`${helperPrefix}-deleted`);
+      const keptHelper = ThreadId.make(`${helperPrefix}-kept`);
+      // An id at the limit is never hashed, so its own log name is the helpers' pre-hash name.
+      const prefixThread = ThreadId.make(helperPrefix);
+      const logPath = (segment: string | null) => NodePath.join(directory, `events.${segment}.log`);
+      const legacyHelperLog = logPath(toSafeThreadAttachmentSegment(deletedHelper));
       const scopeId = CheckpointScopeId.make("owned-scope");
       const shared = yield* checkpointRefForScopeOrdinal({ scopeId, ordinalWithinScope: 0 });
       const owned = yield* checkpointRefForScopeOrdinal({ scopeId, ordinalWithinScope: 1 });
@@ -64,7 +74,7 @@ it.effect(
         ordinalWithinScope: 0,
       });
       for (const ref of [shared, owned, neighbor]) yield* git(["update-ref", ref, "HEAD"]);
-      for (const threadId of [target, kept])
+      for (const threadId of [target, kept, deletedHelper, keptHelper, prefixThread])
         yield* sql`INSERT INTO orchestration_v2_projection_threads
       (thread_id, project_id, title, default_provider, runtime_mode, interaction_mode, created_at, updated_at, payload_json)
       VALUES (${threadId}, 'project', 'fixture', 'codex', 'full-access', 'default', '2026-11-01', '2026-11-01', '{}')`;
@@ -77,6 +87,9 @@ it.effect(
       const store = yield* makeEventNdjsonLogStore(NodePath.join(directory, "events.log"));
       yield* store.logger("native").write({ text: "deleted transcript" }, target);
       yield* store.logger("native").write({ text: "kept transcript" }, kept);
+      yield* store.logger("native").write({ text: "deleted helper" }, deletedHelper);
+      yield* store.logger("native").write({ text: "kept helper" }, keptHelper);
+      yield* fs.writeFileString(legacyHelperLog, "pre-hash helper transcripts");
       const cleanupLayer = ThreadResourceCleanup.layer.pipe(
         Layer.provide(
           Layer.succeed(ProviderEventLoggers.ProviderEventLoggers, {
@@ -97,6 +110,12 @@ it.effect(
         yield* cleanup.cleanupCheckpoints(target, [target]);
         yield* cleanup.cleanupCheckpoints(target, [target]);
         yield* cleanup.cleanupLogs(target, [target]);
+        yield* cleanup.cleanupLogs(deletedHelper, [deletedHelper]);
+        assert.isTrue(yield* fs.exists(legacyHelperLog));
+        yield* cleanup.cleanupLogs(prefixThread, [prefixThread]);
+        assert.isTrue(yield* fs.exists(legacyHelperLog));
+        yield* cleanup.cleanupLogs(deletedHelper, [deletedHelper, keptHelper, prefixThread]);
+        assert.isFalse(yield* fs.exists(legacyHelperLog));
       }).pipe(Effect.provide(cleanupLayer));
       yield* store.close();
       const refs = (yield* git(["for-each-ref", "--format=%(refname)", "refs/t3/"])).stdout;
@@ -111,6 +130,11 @@ it.effect(
       assert.include(
         yield* fs.readFileString(NodePath.join(directory, "events.kept.log")),
         "kept transcript",
+      );
+      assert.isFalse(yield* fs.exists(logPath(resolveThreadSegment(deletedHelper))));
+      assert.include(
+        yield* fs.readFileString(logPath(resolveThreadSegment(keptHelper))),
+        "kept helper",
       );
     }).pipe(Effect.provide(base)),
 );

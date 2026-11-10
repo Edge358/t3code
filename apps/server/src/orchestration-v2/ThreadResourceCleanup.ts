@@ -1,4 +1,4 @@
-import * as Crypto from "effect/Crypto";
+import * as Digest from "effect/crypto/Digest";
 import * as FileSystem from "effect/FileSystem";
 import * as VcsProcess from "../vcs/VcsProcess.ts";
 import { checkpointRefForScopeOrdinal } from "./CheckpointService.ts";
@@ -10,6 +10,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import * as CheckpointStore from "../checkpointing/CheckpointStore.ts";
 import { toSafeThreadAttachmentSegment } from "../attachmentStore.ts";
+import { resolveThreadSegment } from "../provider/EventNdjsonLogger.ts";
 import { ResourceCleanupError } from "./ResourceCleanupService.ts";
 
 export class ThreadResourceCleanup extends Context.Reference<{
@@ -34,7 +35,7 @@ export const layer = Layer.effect(
     const sql = yield* SqlClient.SqlClient;
     const checkpoints = yield* CheckpointStore.CheckpointStore;
     const vcs = yield* VcsProcess.VcsProcess;
-    const crypto = yield* Crypto.Crypto;
+    const digest = yield* Digest.Digest;
     const fs = yield* FileSystem.FileSystem;
     const loggers = yield* ProviderEventLoggers.ProviderEventLoggers;
     return {
@@ -65,7 +66,7 @@ export const layer = Layer.effect(
             const baseline = yield* checkpointRefForScopeOrdinal({
               scopeId: CheckpointScopeId.make(scope.scope_id),
               ordinalWithinScope: 0,
-            }).pipe(Effect.provideService(Crypto.Crypto, crypto));
+            }).pipe(Effect.provideService(Digest.Digest, digest));
             const prefix = baseline.slice(0, -1);
             const listing = yield* vcs.run({
               operation: "ThreadResourceCleanup.listCheckpointRefs",
@@ -94,8 +95,20 @@ export const layer = Layer.effect(
             thread_id: string;
           }>`SELECT thread_id FROM orchestration_v2_projection_threads
             WHERE deleted_at IS NULL AND thread_id NOT IN ${sql.in(group)}`;
-          const segment = toSafeThreadAttachmentSegment(threadId);
-          if (kept.some((row) => toSafeThreadAttachmentSegment(row.thread_id) === segment)) return;
+          const segment = resolveThreadSegment(threadId);
+          // A kept long-id thread's pre-hash log can share this thread's current name.
+          if (
+            kept.some(
+              (row) =>
+                resolveThreadSegment(row.thread_id) === segment ||
+                toSafeThreadAttachmentSegment(row.thread_id) === segment,
+            )
+          )
+            return;
+          const legacySegment = toSafeThreadAttachmentSegment(threadId);
+          const keepSharedLegacyLog = kept.some(
+            (row) => toSafeThreadAttachmentSegment(row.thread_id) === legacySegment,
+          );
           const remove = loggers.native?.removeThread ?? loggers.canonical?.removeThread;
           if (remove === undefined)
             return yield* new ResourceCleanupError({
@@ -103,7 +116,7 @@ export const layer = Layer.effect(
               threadId,
               cause: "Provider log cleanup is unavailable.",
             });
-          yield* remove(threadId);
+          yield* remove(threadId, { keepSharedLegacyLog });
         },
         Effect.mapError((cause) => new ResourceCleanupError({ operation: "logs", cause })),
       ),

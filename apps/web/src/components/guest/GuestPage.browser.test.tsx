@@ -236,6 +236,9 @@ describe("GuestPage", () => {
     // Expanding the command shows its output, read through the guest route.
     await userEvent.click(screen.getByText("vp run check:changed"));
     await expect.element(screen.getByText("4 files checked")).toBeVisible();
+    // The private build asks before mounting an agent-made page.
+    expect(screen.container.querySelector("iframe")).toBeNull();
+    await screen.getByRole("button", { name: "Show page" }).click();
     await expect
       .element(screen.getByTitle("Chart"))
       .toHaveAttribute(
@@ -341,13 +344,15 @@ describe("GuestPage", () => {
     node.dispatchEvent(new Event("scroll"));
     await expect.element(screen.getByRole("button", { name: /scroll to/i })).toBeVisible();
 
-    // The guest's own message waits at the end for the owner.
+    // The guest sends; their message waits at the end for the owner.
     const waiting = {
       id: GuestMessageId.make("guest-1"),
       text: "Can you also check the logout flow?",
       status: "pending" as const,
       submittedAt: "2026-10-23T10:01:00.000Z",
     };
+    await userEvent.type(screen.getByRole("textbox", { name: "Message" }), waiting.text);
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
     send({ type: "view", view: { ...view, messages: [waiting] } });
     await expect.element(screen.getByText(waiting.text)).toBeInTheDocument();
     await expectAtEnd();
