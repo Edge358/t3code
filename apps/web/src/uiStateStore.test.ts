@@ -91,6 +91,38 @@ describe("uiStateStore pure functions", () => {
     const next = reorderProjects(makeUiState(), currentOrder, [keyALocal, keyARemote], [keyC]);
 
     expect(next.projectOrder).toEqual([keyB, keyC, keyALocal, keyARemote]);
+
+    const groupedTarget = [keyB, keyC];
+    expect(
+      reorderProjects(makeUiState(), currentOrder, [keyALocal, keyARemote], groupedTarget)
+        .projectOrder,
+    ).toEqual([keyB, keyC, keyALocal, keyARemote]);
+    expect(
+      reorderProjects(next, next.projectOrder, [keyALocal, keyARemote], groupedTarget).projectOrder,
+    ).toEqual(currentOrder);
+    const initial = makeUiState();
+    expect(
+      reorderProjects(
+        initial,
+        currentOrder,
+        [keyALocal, keyARemote],
+        [keyB, keyC],
+        [keyALocal, keyARemote],
+      ),
+    ).toBe(initial);
+    expect(
+      reorderProjects(
+        initial,
+        currentOrder,
+        [keyB, keyC],
+        [keyALocal, keyARemote],
+        [keyALocal, keyARemote],
+      ),
+    ).toBe(initial);
+    expect(
+      reorderProjects(initial, currentOrder, [keyALocal, keyARemote], [keyB, keyC], currentOrder)
+        .projectOrder,
+    ).toEqual(next.projectOrder);
   });
 });
 
@@ -134,6 +166,12 @@ describe("parsePersistedState", () => {
         },
       },
     });
+  });
+
+  it("keeps a persisted fast-forward merge method", () => {
+    expect(
+      parsePersistedState({ pullRequestMergeMethod: "fast-forward" }).pullRequestMergeMethod,
+    ).toBe("fast-forward");
   });
 
   it.each([undefined, 1])("ignores changed-file expansion version %s", (version) => {
@@ -265,6 +303,21 @@ describe("uiStateStore persistence", () => {
     ) as PersistedUiState;
 
     expect(persisted.sidebarProjectScopeKey).toBe("github.com/pingdotgg/t3code");
+  });
+
+  it("keeps legacy projects omitted from the expanded list collapsed across a save and reload", () => {
+    const projectAKey = legacyProjectCwdPreferenceKey("/repo/a");
+    const projectBKey = legacyProjectCwdPreferenceKey("/repo/b");
+    const migrated = parsePersistedState({ expandedProjectCwds: ["/repo/a"] });
+    expect(resolveProjectExpanded(migrated.projectExpandedById, [projectBKey])).toBe(false);
+
+    persistState({ ...migrated, pullRequestMergeMethod: "squash" });
+    const reloaded = parsePersistedState(
+      JSON.parse(localStorageStub.getItem(PERSISTED_STATE_KEY) ?? "{}") as PersistedUiState,
+    );
+
+    expect(resolveProjectExpanded(reloaded.projectExpandedById, [projectAKey])).toBe(true);
+    expect(resolveProjectExpanded(reloaded.projectExpandedById, [projectBKey])).toBe(false);
   });
 
   it("restores a single-project scope saved before multi-project filtering", () => {

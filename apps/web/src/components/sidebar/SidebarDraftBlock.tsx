@@ -1,4 +1,6 @@
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
+import type { ContextMenuSource } from "@t3tools/contracts";
+import { contextMenuSourceOf } from "../../contextMenuSource";
 import { SquarePenIcon, XIcon } from "lucide-react";
 import {
   memo,
@@ -27,6 +29,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   onContextMenu: (
     draftId: DraftId,
     position: { x: number; y: number },
+    source: ContextMenuSource,
     onRename?: () => void,
   ) => void;
 }) {
@@ -63,7 +66,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
     if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
       event.preventDefault();
       const rect = event.currentTarget.getBoundingClientRect();
-      onContextMenu(draftId, { x: rect.left, y: rect.bottom }, startRename);
+      onContextMenu(draftId, { x: rect.left, y: rect.bottom }, "keyboard", startRename);
     } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       onNavigate(draftId);
@@ -71,7 +74,12 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   };
   const handleContextMenu = (event: ReactMouseEvent) => {
     event.preventDefault();
-    onContextMenu(draftId, { x: event.clientX, y: event.clientY }, startRename);
+    onContextMenu(
+      draftId,
+      { x: event.clientX, y: event.clientY },
+      contextMenuSourceOf(event),
+      startRename,
+    );
   };
   const handleDiscard = (event: ReactMouseEvent) => {
     event.preventDefault();
@@ -184,6 +192,7 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   onDraftContextMenu: (
     draftId: DraftId,
     position: { x: number; y: number },
+    source: ContextMenuSource,
     onRename?: () => void,
   ) => void;
 }) {

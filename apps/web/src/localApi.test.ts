@@ -77,8 +77,8 @@ describe("LocalApi", () => {
     const items = [{ id: "rename", label: "Rename thread" }];
     const position = { x: 40, y: 80 };
 
-    await expect(api.contextMenu.show(items, position)).resolves.toBe("rename");
-    expect(showContextMenuFallbackMock).toHaveBeenCalledWith(items, position);
+    await expect(api.contextMenu.show(items, position, "keyboard")).resolves.toBe("rename");
+    expect(showContextMenuFallbackMock).toHaveBeenCalledWith(items, position, "keyboard");
     expect(nativeMenu).not.toHaveBeenCalled();
     await api.contextMenu.close();
     expect(dismissContextMenuMock).toHaveBeenCalledOnce();

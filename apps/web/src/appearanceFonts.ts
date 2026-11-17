@@ -1,10 +1,12 @@
 import {
   DEFAULT_CODE_FONT_SIZE,
-  DEFAULT_CONTEXT_MENU_FONT_SIZE,
-  DEFAULT_THREAD_FONT_SIZE,
   DEFAULT_INTERFACE_FONT_SIZE,
   DEFAULT_PROMPT_FONT_SIZE,
   MAX_CODE_FONT_SIZE,
+  MIN_FOLDER_FONT_SIZE,
+  MAX_FOLDER_FONT_SIZE,
+  MIN_CONVERSATION_FONT_SIZE,
+  MAX_CONVERSATION_FONT_SIZE,
   MAX_CONTEXT_MENU_FONT_SIZE,
   MAX_THREAD_FONT_SIZE,
   MAX_INTERFACE_FONT_SIZE,
@@ -71,8 +73,10 @@ export interface AppearanceFontPreferences {
   readonly sizeInterface: number;
   readonly sizePrompt: number;
   readonly sizeCode: number;
-  readonly sizeContextMenu: number;
-  readonly sizeThread: number;
+  readonly sizeContextMenu: number | null;
+  readonly sizeThread: number | null;
+  readonly sizeFolder: number | null;
+  readonly sizeConversation: number | null;
   readonly smoothing: boolean;
   readonly separate: boolean;
 }
@@ -96,27 +100,64 @@ export function applyAppearanceFontVariables(
     }
   }
 
+  const markerWidth = probeWidth(
+    appearanceFontStack(preferences.sans, DEFAULT_SANS_FONT_STACK),
+    LIST_MARKER_PROBE_TEXT,
+  );
+  if (markerWidth === null) {
+    root.style.removeProperty("--list-marker-sans");
+  } else {
+    root.style.setProperty("--list-marker-sans", `${(markerWidth / PROBE_FONT_SIZE).toFixed(3)}em`);
+  }
+
   root.style.fontSize = `${clampInterfaceFontSize(preferences.sizeInterface)}px`;
-  const code = clampCodeFontSize(preferences.sizeCode);
   root.style.setProperty(
     "--font-size-prompt",
-    `${preferences.separate ? clampPromptFontSize(preferences.sizePrompt) : code}px`,
+    preferences.separate ? `${clampPromptFontSize(preferences.sizePrompt)}px` : "var(--text-sm)",
   );
+  const code = clampCodeFontSize(preferences.sizeCode);
   root.style.setProperty("--font-size-code", `${code}px`);
   root.style.setProperty("--diffs-font-size", `${code}px`);
-  root.style.setProperty(
-    "--font-size-context-menu",
-    `${clampFontSize(preferences.sizeContextMenu, MIN_CONTEXT_MENU_FONT_SIZE, MAX_CONTEXT_MENU_FONT_SIZE, DEFAULT_CONTEXT_MENU_FONT_SIZE)}px`,
-  );
-
-  // Sidebar labels use text-sm (0.875rem); keep Thread and Interface sizes comparable.
-  const thread = clampFontSize(
-    preferences.sizeThread,
-    MIN_THREAD_FONT_SIZE,
-    MAX_THREAD_FONT_SIZE,
-    DEFAULT_THREAD_FONT_SIZE,
-  );
-  root.style.setProperty("--font-size-thread", `${thread * 0.875}px`);
+  const customSizes = [
+    [
+      "--font-size-thread",
+      preferences.sizeThread,
+      MIN_THREAD_FONT_SIZE,
+      MAX_THREAD_FONT_SIZE,
+      0.875,
+    ],
+    [
+      "--font-size-folder",
+      preferences.sizeFolder,
+      MIN_FOLDER_FONT_SIZE,
+      MAX_FOLDER_FONT_SIZE,
+      0.875,
+    ],
+    [
+      "--font-size-conversation",
+      preferences.sizeConversation,
+      MIN_CONVERSATION_FONT_SIZE,
+      MAX_CONVERSATION_FONT_SIZE,
+      1,
+    ],
+    [
+      "--font-size-context-menu",
+      preferences.sizeContextMenu,
+      MIN_CONTEXT_MENU_FONT_SIZE,
+      MAX_CONTEXT_MENU_FONT_SIZE,
+      1,
+    ],
+  ] as const;
+  for (const [variable, value, minimum, maximum, scale] of customSizes) {
+    if (preferences.separate && value !== null) {
+      root.style.setProperty(
+        variable,
+        `${clampFontSize(value, minimum, maximum, minimum) * scale}px`,
+      );
+    } else {
+      root.style.removeProperty(variable);
+    }
+  }
 
   if (preferences.smoothing) {
     root.style.setProperty("-webkit-font-smoothing", "antialiased");
@@ -148,15 +189,18 @@ function clampCodeFontSize(value: number): number {
 }
 
 const FONT_PROBE_TEXT = "mmmmmmmmMMWli1O0@# fjord";
+// The widest single-digit `ol` marker; CSS can't measure it to size the list gutter.
+const LIST_MARKER_PROBE_TEXT = "0. ";
+const PROBE_FONT_SIZE = 16;
 let fontProbeContext: CanvasRenderingContext2D | null | undefined;
 
-function probeWidth(fontList: string): number | null {
+function probeWidth(fontList: string, text = FONT_PROBE_TEXT): number | null {
   if (fontProbeContext === undefined) {
     fontProbeContext = document.createElement("canvas").getContext("2d");
   }
   if (fontProbeContext === null) return null;
-  fontProbeContext.font = `16px ${fontList}`;
-  return fontProbeContext.measureText(FONT_PROBE_TEXT).width;
+  fontProbeContext.font = `${PROBE_FONT_SIZE}px ${fontList}`;
+  return fontProbeContext.measureText(text).width;
 }
 
 /** Probes canvas metrics because document.fonts.check() accepts uninstalled families. */
@@ -282,6 +326,18 @@ function resolveGenericFamilyLabel(generic: string): string | null {
     return monoLike ? "SF Mono" : "SF Pro";
   }
   return null;
+}
+
+// Synthetic Apple labels are not necessarily available as named CSS families.
+export function displayFontFamily(family: string): string {
+  const label = family
+    .trim()
+    .replace(/^(['"])(.*)\1$/, "$2")
+    .trim()
+    .toLowerCase();
+  if (label === "sf pro") return appearanceFontStack(family, DEFAULT_SANS_FONT_STACK);
+  if (label === "sf mono") return DEFAULT_CODE_FONT_STACK;
+  return cssFontFamilies(family) ?? "";
 }
 
 export function resolveDefaultFamilyLabel(stack: string): string | null {

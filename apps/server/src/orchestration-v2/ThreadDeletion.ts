@@ -114,7 +114,7 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
     },
   });
 
-  if (input.finishHistoryDeletion && historyDeletion?.completedCleanup?.length === 6)
+  if (input.finishHistoryDeletion && historyDeletion?.completedCleanup?.length === 7)
     return { events, effects };
 
   const activeRuns = projection.runs.filter((run) =>
@@ -244,7 +244,8 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
   }
 
   for (const session of projection.providerSessions) {
-    if (session.status === "stopped" || session.status === "error") continue;
+    // An errored session can still own a reusable live runtime.
+    if (session.status === "stopped") continue;
     yield* emitEvent({
       type: "provider-session.detached",
       threadId: command.threadId,

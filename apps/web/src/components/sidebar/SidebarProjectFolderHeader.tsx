@@ -1,11 +1,14 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import type { ContextMenuSource } from "@t3tools/contracts";
 import { ChevronDownIcon, SquarePenIcon } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 
 import { cn } from "~/lib/utils";
+import { useClientSettings } from "../../hooks/useSettings";
 import { deriveProjectIdentity } from "../../projectIdentity";
 import { projectIconColorClassName } from "../../projectIconColors";
+import { contextMenuSourceOf } from "../../contextMenuSource";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import { useUiStateStore } from "../../uiStateStore";
 import { resolveSidebarFolderDot, resolveThreadLastVisitedAt } from "../Sidebar.logic";
@@ -41,15 +44,24 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
   group: SidebarProjectSnapshot;
   collapsed: boolean;
   draggable?: boolean;
+  canDrop?: boolean;
+  onDraggingChange?: (key: string | null) => void;
   onMove?: (draggedKey: string, targetKey: string) => void;
   hiddenThreads: readonly EnvironmentThreadShell[];
   onToggle: (group: SidebarProjectSnapshot) => void;
   onNewThread: (group: SidebarProjectSnapshot) => void;
-  onContextMenu: (group: SidebarProjectSnapshot, position: { x: number; y: number }) => void;
+  onContextMenu: (
+    group: SidebarProjectSnapshot,
+    position: { x: number; y: number },
+    source: ContextMenuSource,
+  ) => void;
 }) {
   const { group, collapsed, hiddenThreads } = props;
+  const nameMatchesIconColor = useClientSettings(
+    (settings) => settings.boringSidebarNameMatchesIconColor,
+  );
   const headingColor =
-    group.projectIcon?.kind === "emoji"
+    !nameMatchesIconColor || group.projectIcon?.kind === "emoji"
       ? null
       : (group.projectIcon?.color ??
         (group.title.trim() ? deriveProjectIdentity(group.title).color : null));
@@ -86,10 +98,14 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
       data-testid="sidebar-project-folder"
       className={cn(
         "group/project-folder relative mt-2 list-none first:mt-0",
-        dropTarget && props.draggable && "rounded-md ring-1 ring-ring",
+        dropTarget && props.draggable && props.canDrop && "rounded-md ring-1 ring-ring",
       )}
       onDragOver={(event) => {
-        if (!props.draggable || !event.dataTransfer.types.includes("application/x-t3-project"))
+        if (
+          !props.draggable ||
+          !props.canDrop ||
+          !event.dataTransfer.types.includes("application/x-t3-project")
+        )
           return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
@@ -104,12 +120,13 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
       }}
       onDrop={(event) => {
         setDropTarget(false);
-        if (!props.draggable) return;
+        if (!props.draggable || !props.canDrop) return;
         const source = event.dataTransfer.getData("application/x-t3-project");
         if (!source) return;
         event.preventDefault();
         event.stopPropagation();
         props.onMove?.(source, group.projectKey);
+        props.onDraggingChange?.(null);
       }}
     >
       <button
@@ -123,20 +140,28 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           }
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("application/x-t3-project", group.projectKey);
+          props.onDraggingChange?.(group.projectKey);
         }}
-        onDragEnd={() => setDropTarget(false)}
+        onDragEnd={() => {
+          setDropTarget(false);
+          props.onDraggingChange?.(null);
+        }}
         aria-expanded={!collapsed}
         onClick={() => props.onToggle(group)}
         onContextMenu={(event) => {
           event.preventDefault();
-          props.onContextMenu(group, { x: event.clientX, y: event.clientY });
+          props.onContextMenu(
+            group,
+            { x: event.clientX, y: event.clientY },
+            contextMenuSourceOf(event),
+          );
         }}
         className="flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-(--control-radius) px-(--sidebar-row-content-inset) text-left outline-none hover:bg-sidebar-row-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <ProjectFavicon project={group} className="size-4 shrink-0" />
         <span
           className={cn(
-            "min-w-0 flex-1 truncate text-sm font-medium",
+            "min-w-0 flex-1 truncate text-(length:--font-size-folder,var(--text-sm)) font-medium",
             headingColor ? projectIconColorClassName(headingColor) : "text-sidebar-foreground/90",
             !group.projectIcon &&
               "group-has-[img:not(.hidden)]/project-folder:text-sidebar-foreground/90",
@@ -150,7 +175,7 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           </span>
         ) : null}
         {collapsed && hiddenThreads.length > 0 ? (
-          <span className="shrink-0 text-xs tabular-nums text-sidebar-muted-foreground group-hover/project-folder:invisible pointer-coarse:invisible">
+          <span className="shrink-0 text-xs tabular-nums text-sidebar-muted-foreground group-hover/project-folder:invisible group-has-[[data-sidebar-action-for]:focus]/project-folder:invisible pointer-coarse:invisible">
             {hiddenThreads.length}
           </span>
         ) : null}
@@ -162,7 +187,7 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           )}
         />
       </button>
-      {/* Sits over the count, which hides on hover, and left of the chevron. */}
+      {/* Sits over the count, which hides on hover or focus, and left of the chevron. */}
       <span className="absolute inset-y-0 right-6 flex items-center opacity-0 focus-within:opacity-100 group-hover/project-folder:opacity-100 pointer-coarse:opacity-100">
         <Tooltip>
           <TooltipTrigger

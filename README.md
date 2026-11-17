@@ -29,7 +29,7 @@ Details and reasons: [Custom changes](CUSTOM_CHANGES.md) ·
 
 ## Status
 
-- Based on T3 Code v0.1.8. It catches up with Theo's releases from time to time.
+- Source based on T3 Code v0.1.10. It catches up with Theo's releases from time to time.
 - Windows only, tested on one machine.
 - Download the Windows installer from
   [Releases](https://github.com/Edge358/t3code/releases).

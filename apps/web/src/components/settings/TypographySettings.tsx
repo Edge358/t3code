@@ -3,6 +3,10 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   DEFAULT_UNIFIED_SETTINGS,
   MAX_CODE_FONT_SIZE,
+  MIN_FOLDER_FONT_SIZE,
+  MAX_FOLDER_FONT_SIZE,
+  MIN_CONVERSATION_FONT_SIZE,
+  MAX_CONVERSATION_FONT_SIZE,
   MAX_CONTEXT_MENU_FONT_SIZE,
   MAX_THREAD_FONT_SIZE,
   MAX_INTERFACE_FONT_SIZE,
@@ -76,7 +80,7 @@ function InterfaceFontRow({ preview }: { preview?: ReactNode }) {
   return (
     <FontFamilySettingsRow
       {...searchableSetting("interface-font")}
-      description="Lettering for the interface and ordinary messages. Size controls the sidebar and settings."
+      description="Everything outside code blocks and the terminal."
       defaultFamily={defaults.sans}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilySans}
       value={settings.fontFamilySans}
@@ -133,7 +137,7 @@ function PromptFontRow() {
 
 function CodeFontRow({
   title,
-  description = "Code lettering. Size controls replies, code blocks, diffs, and file previews.",
+  description = "Code blocks, diffs, file previews, and expanded tool output.",
   preview,
 }: {
   title?: string;
@@ -160,7 +164,7 @@ function CodeFontRow({
       }
       requireMonospace
       size={{
-        label: "Chat and code text size",
+        label: "Code font size",
         min: MIN_CODE_FONT_SIZE,
         max: MAX_CODE_FONT_SIZE,
         value: settings.fontSizeCode,
@@ -242,97 +246,59 @@ function FontSmoothingRow() {
   );
 }
 
-function ThreadSizeRow() {
+function CustomSizeRow({
+  setting,
+  searchId,
+  description,
+  min,
+  max,
+}: {
+  setting: "fontSizeThread" | "fontSizeFolder" | "fontSizeConversation" | "fontSizeContextMenu";
+  searchId:
+    | "thread-font-size"
+    | "folder-font-size"
+    | "conversation-font-size"
+    | "context-menu-size";
+  description: string;
+  min: number;
+  max: number;
+}) {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
+  const value = settings[setting];
+  const label = searchableSetting(searchId);
   return (
     <SettingsRow
-      {...searchableSetting("thread-font-size")}
-      description="Sidebar thread names only. Uses the Interface font and size scale."
+      {...label}
+      description={description}
       resetAction={
-        settings.fontSizeThread !== DEFAULT_UNIFIED_SETTINGS.fontSizeThread ? (
+        value !== null ? (
           <SettingResetButton
-            label="thread font size"
-            onClick={() =>
-              updateSettings({ fontSizeThread: DEFAULT_UNIFIED_SETTINGS.fontSizeThread })
-            }
+            label={label.title}
+            onClick={() => updateSettings({ [setting]: null })}
           />
         ) : null
       }
       control={
         <Select
-          value={String(settings.fontSizeThread)}
+          value={value === null ? "default" : String(value)}
           onValueChange={(next) => {
+            if (next === "default") {
+              updateSettings({ [setting]: null });
+              return;
+            }
             if (typeof next !== "string") return;
             const size = Number(next);
-            if (
-              Number.isInteger(size) &&
-              size >= MIN_THREAD_FONT_SIZE &&
-              size <= MAX_THREAD_FONT_SIZE
-            ) {
-              updateSettings({ fontSizeThread: size });
-            }
+            if (Number.isInteger(size) && size >= min && size <= max)
+              updateSettings({ [setting]: size });
           }}
         >
-          <SelectTrigger size="sm" className="w-22" aria-label="Thread font size">
-            <SelectValue>{settings.fontSizeThread} px</SelectValue>
+          <SelectTrigger size="sm" className="w-32" aria-label={label.title + " size"}>
+            <SelectValue>{value === null ? "Follow Interface" : value + " px"}</SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
-            {Array.from(
-              { length: MAX_THREAD_FONT_SIZE - MIN_THREAD_FONT_SIZE + 1 },
-              (_, index) => MIN_THREAD_FONT_SIZE + index,
-            ).map((px) => (
-              <SelectItem hideIndicator key={px} value={String(px)}>
-                {px} px
-              </SelectItem>
-            ))}
-          </SelectPopup>
-        </Select>
-      }
-    />
-  );
-}
-
-function ContextMenuSizeRow() {
-  const settings = useScopedSettings();
-  const updateSettings = useUpdateScopedSettings();
-  return (
-    <SettingsRow
-      {...searchableSetting("context-menu-size")}
-      description="Text size in right-click menus. Uses the Interface font."
-      resetAction={
-        settings.fontSizeContextMenu !== DEFAULT_UNIFIED_SETTINGS.fontSizeContextMenu ? (
-          <SettingResetButton
-            label="right-click menu size"
-            onClick={() =>
-              updateSettings({ fontSizeContextMenu: DEFAULT_UNIFIED_SETTINGS.fontSizeContextMenu })
-            }
-          />
-        ) : null
-      }
-      control={
-        <Select
-          value={String(settings.fontSizeContextMenu)}
-          onValueChange={(next) => {
-            if (typeof next !== "string") return;
-            const size = Number(next);
-            if (
-              Number.isInteger(size) &&
-              size >= MIN_CONTEXT_MENU_FONT_SIZE &&
-              size <= MAX_CONTEXT_MENU_FONT_SIZE
-            ) {
-              updateSettings({ fontSizeContextMenu: size });
-            }
-          }}
-        >
-          <SelectTrigger size="sm" className="w-22" aria-label="Right-click menu size">
-            <SelectValue>{settings.fontSizeContextMenu} px</SelectValue>
-          </SelectTrigger>
-          <SelectPopup align="end" alignItemWithTrigger={false}>
-            {Array.from(
-              { length: MAX_CONTEXT_MENU_FONT_SIZE - MIN_CONTEXT_MENU_FONT_SIZE + 1 },
-              (_, index) => MIN_CONTEXT_MENU_FONT_SIZE + index,
-            ).map((px) => (
+            <SelectItem value="default">Follow Interface</SelectItem>
+            {Array.from({ length: max - min + 1 }, (_, index) => min + index).map((px) => (
               <SelectItem hideIndicator key={px} value={String(px)}>
                 {px} px
               </SelectItem>
@@ -374,9 +340,37 @@ function FontSettingsGroup() {
   return (
     <>
       <InterfaceFontRow />
+      <CustomSizeRow
+        setting="fontSizeFolder"
+        searchId="folder-font-size"
+        description="Project folder names in the sidebar. Uses the Interface font and size scale."
+        min={MIN_FOLDER_FONT_SIZE}
+        max={MAX_FOLDER_FONT_SIZE}
+      />
+      <CustomSizeRow
+        setting="fontSizeThread"
+        searchId="thread-font-size"
+        description="Thread names in the sidebar. Uses the Interface font and size scale."
+        min={MIN_THREAD_FONT_SIZE}
+        max={MAX_THREAD_FONT_SIZE}
+      />
       <PromptFontRow />
+      <CustomSizeRow
+        setting="fontSizeConversation"
+        searchId="conversation-font-size"
+        description="Agent replies, sent messages, and plans. Code blocks keep the Code size."
+        min={MIN_CONVERSATION_FONT_SIZE}
+        max={MAX_CONVERSATION_FONT_SIZE}
+      />
       <CodeFontRow />
       <TerminalFontRow />
+      <CustomSizeRow
+        setting="fontSizeContextMenu"
+        searchId="context-menu-size"
+        description="Right-click menu text. Uses the Interface font."
+        min={MIN_CONTEXT_MENU_FONT_SIZE}
+        max={MAX_CONTEXT_MENU_FONT_SIZE}
+      />
     </>
   );
 }
@@ -391,7 +385,7 @@ function SeparateFontsRow({
   return (
     <SettingsRow
       {...searchableSetting("separate-fonts")}
-      description="Set the prompt, code, and terminal fonts separately instead of one monospace font."
+      description="Set fonts and text sizes separately for the sidebar, prompt, conversation, code, terminal, and right-click menus."
       control={
         <Switch
           checked={checked}
@@ -410,7 +404,7 @@ function SimpleFontRows() {
       <InterfaceFontRow preview={<PromptFontPreview />} />
       <CodeFontRow
         title="Monospace font"
-        description="Font controls code and terminal lettering. Size controls the typing box, replies, code, and terminal."
+        description="Code blocks, diffs, file previews, and the terminal."
         preview={
           <>
             <CodeFontPreview />
@@ -452,8 +446,6 @@ export function TypographySection() {
   return (
     <SettingsSection id="typography" title="Typography">
       {showAdvanced ? <FontSettingsGroup /> : <SimpleFontRows />}
-      <ThreadSizeRow />
-      <ContextMenuSizeRow />
       <WordWrapRow />
       <AdvancedSettings
         targetIds={[searchableSetting("separate-fonts").id, searchableSetting("font-smoothing").id]}

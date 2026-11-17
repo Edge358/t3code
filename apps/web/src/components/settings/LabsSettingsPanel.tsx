@@ -48,9 +48,31 @@ function BoringSidebarRow() {
       {settings.boringSidebarEnabled ? (
         <div className="mt-2 mb-2 border-l-2 border-border/60 ps-3">
           <BoringSidebarMultilineRow />
+          <BoringSidebarNameColorRow />
         </div>
       ) : null}
     </SettingsRow>
+  );
+}
+
+function BoringSidebarNameColorRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <SettingsRow
+      {...searchableSetting("boring-sidebar-name-color")}
+      className="px-0 py-2 sm:px-0"
+      description="Match project names to their icon color. Emoji and image icons keep neutral names. Applies to this device."
+      control={
+        <Switch
+          checked={settings.boringSidebarNameMatchesIconColor}
+          onCheckedChange={(checked) =>
+            updateSettings({ boringSidebarNameMatchesIconColor: Boolean(checked) })
+          }
+          aria-label="Name matches icon color"
+        />
+      }
+    />
   );
 }
 

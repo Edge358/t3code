@@ -79,33 +79,33 @@ The README links here so a future reader can identify this variant.
 
 ## 1. Readability and appearance
 
-| Change                       | Reason and resulting behavior                                                                                                                                                                                                                                  | Main implementation                                                                                                                                                             |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Consistent 24px upper limit  | Previously Interface/Prompt/Terminal stopped at 20px and Code at 18px. All four now permit 24px for distant viewing and accessibility. Existing minimums and default font values remain.                                                                       | [settings.ts](packages/contracts/src/settings.ts)                                                                                                                               |
-| One shared chat/code size    | With Separate fonts off, the size beside Monospace font controls the typing box, ordinary replies, code, diffs, file previews, and terminal. Changing it in Settings updates the display without rebuilding.                                                   | [appearanceFonts.ts](apps/web/src/appearanceFonts.ts), [TypographySettings.tsx](apps/web/src/components/settings/TypographySettings.tsx), [utils.ts](apps/web/src/lib/utils.ts) |
-| Uniform reply content size   | Prose, inline/fenced code, headings, and tables use the reply size. Weights, structure, and syntax coloring remain. This is a deliberate aesthetic choice; different fonts can still have different apparent letter heights at the same CSS size.              | [index.css](apps/web/src/index.css), [ChatMarkdown.tsx](apps/web/src/components/ChatMarkdown.tsx)                                                                               |
-| Independent thread size      | Thread font size sits above Right-click menu size in Appearance > Typography. It uses 12-24, default 22, on the Interface size scale. Only sidebar thread/draft names and their rename fields change; folder names keep following Interface size.              | [TypographySettings.tsx](apps/web/src/components/settings/TypographySettings.tsx), [appearanceFonts.ts](apps/web/src/appearanceFonts.ts), sidebar thread/draft rows             |
-| Adjustable right-click menus | A new independent Right-click menu size setting uses 12-24px, default 18px, and the Interface font. App action menus use the existing app-rendered menu instead of the native desktop menu so the setting can apply. This does not restyle every Windows menu. | [localApi.ts](apps/web/src/localApi.ts), [contextMenuFallback.ts](apps/web/src/contextMenuFallback.ts), settings schema/UI/search                                               |
-| Smaller welcome heading      | The new-thread heading uses Interface size plus 6px rather than the former large heading scale. It remains part of the empty-thread view.                                                                                                                      | [DraftHeroHeadline.tsx](apps/web/src/components/chat/DraftHeroHeadline.tsx), [DraftHeroProjectHeading.tsx](apps/web/src/components/chat/DraftHeroProjectHeading.tsx)            |
-| Dimmer empty input hint      | The placeholder has 50% opacity; entered text stays fully opaque. This makes the hint easier to distinguish from an actual draft.                                                                                                                              | [ComposerPromptEditorTiptap.tsx](apps/web/src/components/ComposerPromptEditorTiptap.tsx)                                                                                        |
+| Change                      | Reason and resulting behavior                                                                                                                                                                                                                                    | Main implementation                                                                                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Consistent 24px upper limit | Previously Interface/Prompt/Terminal stopped at 20px and Code at 18px. All four now permit 24px for distant viewing and accessibility. Existing minimums and default font values remain.                                                                         | [settings.ts](packages/contracts/src/settings.ts)                                                                                                                    |
+| Separate text sizes         | Appearance > Typography > Advanced > Separate fonts reveals Sidebar folders, Sidebar threads, Conversation, and Right-click menus alongside the existing font controls. Off uses the upstream size rules for these areas; saved overrides return when turned On. | [TypographySettings.tsx](apps/web/src/components/settings/TypographySettings.tsx), [appearanceFonts.ts](apps/web/src/appearanceFonts.ts)                             |
+| Conversation and Code       | Conversation sizes replies, sent messages, plans, headings, and tables. Code independently sizes fenced blocks, diffs, file previews, and expanded tool output. Inline code stays relative to its sentence.                                                      | [index.css](apps/web/src/index.css), [ChatMarkdown.tsx](apps/web/src/components/ChatMarkdown.tsx)                                                                    |
+| Sidebar folders and threads | Independent 12-24 settings use the Interface scale: the actual sidebar text is 0.875 times the selected value. Thread and draft rename fields use the thread setting.                                                                                            | [appearanceFonts.ts](apps/web/src/appearanceFonts.ts), sidebar folder/thread/draft rows                                                                              |
+| Right-click menus           | Independent 12-24px text uses the Interface font. App-rendered action menus support this size; other Windows menus are unchanged.                                                                                                                                | [contextMenuFallback.ts](apps/web/src/contextMenuFallback.ts)                                                                                                        |
+| Smaller welcome heading     | The new-thread heading uses Interface size plus 6px rather than the former large heading scale. It remains part of the empty-thread view.                                                                                                                        | [DraftHeroHeadline.tsx](apps/web/src/components/chat/DraftHeroHeadline.tsx), [DraftHeroProjectHeading.tsx](apps/web/src/components/chat/DraftHeroProjectHeading.tsx) |
+| Dimmer empty input hint     | The placeholder has 50% opacity; entered text stays fully opaque. This makes the hint easier to distinguish from an actual draft.                                                                                                                                | [ComposerPromptEditorTiptap.tsx](apps/web/src/components/ComposerPromptEditorTiptap.tsx)                                                                             |
 
 Font family and size remain distinct choices. Ordinary messages use Interface
-lettering; code uses the selected monospace lettering. Separate fonts retains
-independent prompt/terminal controls when enabled; replies continue to use the
-chat/code size. No additional chat-only size control was introduced.
+lettering; code uses monospace lettering. The four custom sizes start at Follow
+Interface, so enabling Separate fonts does not impose custom overrides. Each can
+be reset independently. The row order is Interface, Sidebar folders, Sidebar threads,
+Prompt, Conversation, Code, Terminal, Right-click menus, then Word wrap. Compact
+alerts, extra-small buttons, and monospace tooltips scale with Interface.
 
-The reviewer's saved profile is Interface 24px, shared chat/code 22px, right-click
-menus 18px, with Separate fonts off. **These are saved preferences, not new
-installation defaults.** Source defaults remain Interface 16px, Prompt 14px,
-Code 13px, Terminal 12px. Because ordinary replies now follow Code size, a fresh
-profile's reply size also follows that 13px value. Another computer can use its
-own sizes in Settings.
+Source defaults remain Interface 16px, Prompt 14px, Code 13px, and Terminal 12px.
+With Separate fonts Off, every size follows upstream's rules: Terminal follows Code,
+while the typing box, ordinary replies, sidebar names, and right-click menus follow
+the standard Interface-relative scale. At Interface 16px, that text is 14px. Personal settings are not installation
+defaults; each computer can choose its own sizes.
 
-Thread font size defaults to 22 for profiles without a saved value. It retains
-the sidebar label scale (0.875 times the selected size), so matching Thread and
-Interface settings produce equal-size labels. At Interface 24, Thread 22 or 20
-reduces only the sidebar thread lettering. Settings search, individual reset, and
-Restore defaults include this control; the font family remains the Interface font.
+Sidebar folders and Sidebar threads default to Follow Interface. Their independent
+overrides retain the sidebar label scale (0.875 times the selected size), so matching
+sidebar and Interface settings produce equal-size labels. Settings search, individual
+reset, and Restore defaults include both controls; their font family remains Interface.
 
 Validation includes schema limits, persisted settings, live font changes,
 Markdown sizes, app-menu selection/navigation, and packaged computed styles.
@@ -171,8 +171,11 @@ across environments.
 
 ### Project order, empty drafts, and open groups
 
-Project heading text matches the existing monogram or configured icon color,
-using the same light/dark palette. Emoji and displayed image icons keep neutral
+**Settings > Labs > Boring sidebar > Name matches icon color** controls project
+heading colors on this device. It defaults Off and appears only while Boring sidebar
+is enabled. It does not depend on Manual project order. When On, project heading
+text matches the existing monogram or configured icon color, using the same
+light/dark palette. Emoji and displayed image icons keep neutral
 headings; a failed image returns to the monogram color. Only the project name is
 colored. This color rule does not change thread names, counts, or controls.
 
@@ -187,7 +190,9 @@ In a web browser, the T3 Code name remains a Home link.
 
 In **Manual** project order, drag a project heading onto another heading to move
 it in the saved order. Moving downward places it after the target; moving upward
-places it before the target. The other project sort modes do not allow dragging
+places it before the target. A grouped project moves all its checkouts together,
+and a grouped target stays intact. Drops across the pinned/unpinned boundary are
+refused in either direction; a divider marks that boundary. The other project sort modes do not allow dragging
 and retain their existing ordering rules. The saved manual order uses the existing
 project preference storage and survives restart and conversation deletion.
 
@@ -197,7 +202,8 @@ an explicit title, and do not start an AI session. The existing empty-draft reus
 and workspace/model choices remain. The first prompt uses the normal automatic
 T3 title generation unless the user already renamed the draft. Renaming works
 from the header or sidebar; a manual title is preserved when sending, including
-multiple-model sends. T3 and provider-native titles are not synchronized.
+multiple-model sends. Claude session titles follow T3 thread renames through
+upstream's native-title synchronization; this is not supported for every provider.
 
 Discard also removes an untouched empty draft, even when no composer content has
 been saved. Undo restores the draft and its project association.
@@ -231,7 +237,8 @@ to settled threads; deletion no longer selects a replacement conversation.
 
 The home route no longer starts a draft as a side effect. After a successful
 delete, the action checks the current environment/thread before navigating home;
-no replacement-thread sorting is needed. Implementation:
+no replacement-thread sorting is needed. It also keeps upstream's check for a
+navigation made while the delete was pending, so upstream's own test passes unchanged. Implementation:
 [home route](apps/web/src/routes/_chat.index.tsx),
 [welcome page](apps/web/src/components/NoProjectsHero.tsx), and
 [thread actions](apps/web/src/hooks/useThreadActions.ts).
@@ -528,7 +535,8 @@ folders (never the Claude project folder itself, which can hold its `memory`),
 T3 provider logs and rotations (including logs written under the shorter shared
 name that helper threads used before v0.1.8, unless a retained thread also wrote
 there), attachments, thread-bound scheduled tasks,
-terminal history, and owned Git checkpoint refs. Shared resources needed by retained
+terminal history, and owned Git checkpoint refs. It also releases device claims,
+without shutting down the devices. Shared resources needed by retained
 conversations are protected. Project files, normal Git branches/tags/commits, and
 GitHub repositories are untouched. Archive, Unarchive, Settle, and project removal
 retain their existing behavior.
@@ -582,7 +590,7 @@ limited review capacity, focused scope, and prior discussion for product changes
 | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | [Consistent font limits](#1-readability-and-appearance)                                                                      | Text controls expose inconsistent readable sizes; the four controls now allow up to 24px.                                                                    | Personal 24/22/18 preferences and other defaults.                                                                                       |
 | [Configurable context-menu text](#1-readability-and-appearance)                                                              | Native action menus stay small despite larger app text; app-rendered menus use a saved size.                                                                 | Native-menu tradeoffs and cross-platform accessibility need their own review.                                                           |
-| [Shared chat/code size](#1-readability-and-appearance)                                                                       | Replies mix unexpected sizes; one shared size controls ordinary replies and code when Separate fonts is off.                                                 | Optional product design, not a universal defect.                                                                                        |
+| [Separate text sizes](#1-readability-and-appearance)                                                                         | Replies, sidebar names, and right-click menus cannot be sized on their own; four sizes sit behind Separate fonts and change nothing while it is Off.         | Personal sizes; the 24px limits are a separate candidate.                                                                               |
 | [Add-folder action in New Thread](#starting-a-thread)                                                                        | The chooser now offers Add project / choose folder alongside existing projects and No project.                                                               | Project-grouping defaults and global shortcut behavior.                                                                                 |
 | [Neutral home after deletion](#home-after-deletion)                                                                          | Deleting the viewed thread returns home without starting a draft or choosing another conversation.                                                           | Intentional workflow preference; unrelated-thread preservation can be reviewed independently.                                           |
 | [Preserve navigation during deletion](#home-after-deletion)                                                                  | Recheck the current route after deletion so a pending action does not pull the user away from a newer selection.                                             | The choice of home versus another destination.                                                                                          |
@@ -758,13 +766,13 @@ output folder. The app can remain open while building there. The default output
 is `.local/builds/current`, so supply an explicit output folder to preserve it:
 
 ```powershell
-pnpm.cmd run dist:desktop:win:x64 --build-version 0.1.8-private.<n> --output-dir .local/builds/candidate-<n>
+pnpm.cmd run dist:desktop:win:x64 --build-version <upstream version>-private.<n> --output-dir .local/builds/candidate-<n>
 ```
 
 The Git-ignored `.local` directory contains all persistent private build and
 runtime material. Windows packaging copies the complete `win-unpacked` app along
 with the installer. Its payload check allows 96 loose files instead of upstream's 80:
-v0.1.8's built-in dictation libraries plus this build's extra server chunks produce 89. Staging runs under `build/desktop-staging` and is removed
+upstream's built-in dictation libraries plus this build's extra server chunks produce about 90. Staging runs under `build/desktop-staging` and is removed
 automatically unless `--keep-stage` is explicitly requested. Mock output uses
 `.local/builds/mock`; `--output-dir` still overrides the destination.
 

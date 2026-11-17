@@ -1,7 +1,7 @@
 import * as ProjectionReplay from "./testkit/ProjectionReplay.ts";
 import * as EventStore from "./EventStore.ts";
 import * as ThreadResourceCleanup from "./ThreadResourceCleanup.ts";
-import { ResourceCleanupError } from "./ResourceCleanupService.ts";
+import { ResourceCleanupError, ResourceCleanupService } from "./ResourceCleanupService.ts";
 import { assert, it } from "@effect/vitest";
 import {
   CommandId,
@@ -53,6 +53,7 @@ it.effect.each([
   "busy-session",
   "subagent-descendants",
   "cleanup-failure",
+  "device-cleanup-failure",
   "legacy-sweep",
 ] as const)(
   "persists a mixed-provider deletion and handles %s without losing retry references",
@@ -60,6 +61,22 @@ it.effect.each([
     const calls: string[] = [];
     const cleanupCalls: string[] = [];
     let failCleanup = scenario === "cleanup-failure";
+    let failDevices = false;
+    const deviceCleanupLayer = Layer.succeed(ResourceCleanupService, {
+      cleanupScheduledTasks: () => Effect.void,
+      cleanupTerminals: () => Effect.void,
+      cleanupPreviews: () => Effect.void,
+      cleanupAttachments: () => Effect.void,
+      cleanupDevices: () =>
+        Effect.suspend(() => {
+          cleanupCalls.push("devices");
+          return failDevices
+            ? Effect.fail(
+                new ResourceCleanupError({ operation: "device", cause: "locked fixture" }),
+              )
+            : Effect.void;
+        }),
+    });
     const cleanupLayer = Layer.succeed(ThreadResourceCleanup.ThreadResourceCleanup, {
       cleanupCheckpoints: () =>
         Effect.sync(() => {
@@ -162,7 +179,7 @@ it.effect.each([
         { name: `history-delete-${scenario}` },
         ProviderAdapterRegistry.layerFromAdapters(adapters),
         { databaseLayer: db, runEffectWorker: false },
-      ).pipe(Layer.provide(cleanupLayer)),
+      ).pipe(Layer.provide(Layer.merge(cleanupLayer, deviceCleanupLayer))),
     );
     return Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -425,6 +442,8 @@ it.effect.each([
         assert.isTrue(writerOpen);
       }
       assert.deepEqual(calls, []);
+      cleanupCalls.length = 0;
+      failDevices = scenario === "device-cleanup-failure";
       if (independentChild) {
         yield* orchestrator.dispatch({
           type: "thread.delete",
@@ -519,6 +538,7 @@ it.effect.each([
         scenario === "partial" ||
           scenario === "shared-partial" ||
           scenario === "cleanup-failure" ||
+          scenario === "device-cleanup-failure" ||
           scenario === "busy-session" ||
           scenario === "side-chat-partial" ||
           scenario === "side-chat-independent-failed" ||
@@ -627,7 +647,8 @@ it.effect.each([
           yield* sql`SELECT * FROM orchestration_v2_projection_messages WHERE thread_id = ${target}`,
           1,
         );
-        assert.deepEqual(cleanupCalls, ["checkpoints", "logs"]);
+        assert.deepEqual(cleanupCalls, ["devices", "checkpoints", "logs"]);
+        assert.include(first.historyDeletion!.completedCleanup!, "device");
         failCleanup = false;
         yield* orchestrator.dispatch({
           type: "thread.delete",
@@ -635,7 +656,27 @@ it.effect.each([
           commandId: CommandId.make("retry-cleanup"),
         });
         yield* worker.drain();
-        assert.deepEqual(cleanupCalls, ["checkpoints", "logs", "logs"]);
+        assert.deepEqual(cleanupCalls, ["devices", "checkpoints", "logs", "logs"]);
+        assert.sameMembers(calls, ["codex-first", "claude", "codex-return"]);
+      }
+      if (scenario === "device-cleanup-failure") {
+        assert.isNull(first.deletedAt);
+        assert.include(first.historyDeletion!.message, "device claims");
+        assert.notInclude(first.historyDeletion!.message, "locked fixture");
+        assert.deepEqual(cleanupCalls, ["devices"]);
+        failDevices = false;
+        yield* orchestrator.dispatch({
+          type: "thread.delete",
+          threadId: target,
+          commandId: CommandId.make("retry-device-cleanup"),
+        });
+        yield* worker.drain();
+        yield* orchestrator.awaitThreadDeletion(target);
+        const completed = yield* projections.getThread(target);
+        assert.isNotNull(completed.deletedAt);
+        assert.equal(completed.historyDeletion!.status, "complete");
+        assert.isTrue(completed.historyDeletion!.purged);
+        assert.deepEqual(cleanupCalls, ["devices", "devices", "checkpoints", "logs"]);
         assert.sameMembers(calls, ["codex-first", "claude", "codex-return"]);
       }
       if (scenario === "busy-session") {

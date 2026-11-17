@@ -197,7 +197,7 @@ to a newer format that an older version cannot use. If you think you might want 
 go back, copy the `.t3` folder inside your user folder (`C:\Users\YourName\.t3`)
 somewhere safe before you update.
 
-If your regular T3 Code is newer than v0.1.8, do not install this build over it.
+If your regular T3 Code is newer than v0.1.10, do not install this build over it.
 That would be going back.
 
 ## If something does not work

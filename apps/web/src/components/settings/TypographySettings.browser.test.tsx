@@ -33,11 +33,14 @@ function setup(searchTargetId: string | null) {
 }
 
 describe("TypographySection", () => {
-  it("persists the advanced flag the terminal reads when a deep link targets an advanced row", async () => {
-    using _storage = setup("terminal-font");
+  it.each([
+    ["terminal-font", "Terminal"],
+    ["conversation-font-size", "Conversation"],
+  ])("persists the advanced flag for a deep link to %s", async (target, title) => {
+    using _storage = setup(target);
     await using screen = await render(<TypographySection />);
 
-    await expect.element(screen.getByRole("heading", { name: "Terminal font" })).toBeVisible();
+    await expect.element(screen.getByRole("heading", { name: title })).toBeVisible();
     expect(getLocalStorageItem(TYPOGRAPHY_ADVANCED_STORAGE_KEY, Schema.Boolean)).toBe(true);
   });
 });

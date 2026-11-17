@@ -117,6 +117,7 @@ export const layer = Layer.effect(
             const released = yield* sessions.releaseUnlessBusy({
               providerSessionId,
               ownProviderThreadIds: ownedProviderThreadIds,
+              throughRunOrdinal: Number.MAX_SAFE_INTEGER,
               reason: "manual_shutdown",
               detail: "Conversation history deletion.",
             });
@@ -306,6 +307,7 @@ export const layer = Layer.effect(
               ["scheduled-tasks", cleanup.cleanupScheduledTasks(effect.threadId)],
               ["terminal", cleanup.cleanupTerminals(effect.threadId)],
               ["preview", cleanup.cleanupPreviews(effect.threadId)],
+              ["device", cleanup.cleanupDevices(effect.threadId)],
               [
                 "attachments",
                 cleanup.cleanupAttachments(
@@ -321,6 +323,7 @@ export const layer = Layer.effect(
                 "scheduled-tasks": "removing scheduled tasks",
                 terminal: "closing terminals",
                 preview: "closing previews",
+                device: "releasing device claims",
                 attachments: "removing attachments",
                 checkpoints: "removing conversation checkpoints",
                 logs: "removing conversation logs",

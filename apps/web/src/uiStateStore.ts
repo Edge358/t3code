@@ -1,5 +1,6 @@
 import { Debouncer } from "@tanstack/react-pacer";
-import type { PullRequestMergeMethod } from "@t3tools/contracts";
+import { PullRequestMergeMethod } from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
 import { create } from "zustand";
 import { normalizeProjectPathForComparison } from "@t3tools/client-runtime/state/projects";
 
@@ -99,6 +100,8 @@ function sanitizeOptionalKey(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+const isPullRequestMergeMethod = Schema.is(PullRequestMergeMethod);
+
 function sanitizeTimestampRecord(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object") {
     return {};
@@ -112,10 +115,6 @@ function sanitizeTimestampRecord(value: unknown): Record<string, string> {
         Number.isFinite(Date.parse(entry[1])),
     ),
   );
-}
-
-function isPullRequestMergeMethod(value: unknown): value is PullRequestMergeMethod {
-  return value === "merge" || value === "squash" || value === "rebase";
 }
 
 export function parsePersistedState(parsed: PersistedUiState): UiState {
@@ -215,15 +214,10 @@ export function persistState(state: UiState): void {
     return;
   }
   try {
-    const projectExpandedById = Object.fromEntries(
-      Object.entries(state.projectExpandedById).filter(
-        ([key]) => key !== LEGACY_PROJECT_EXPANSION_DEFAULT_KEY,
-      ),
-    );
     window.localStorage.setItem(
       PERSISTED_STATE_KEY,
       JSON.stringify({
-        projectExpandedById,
+        projectExpandedById: state.projectExpandedById,
         projectOrder: state.projectOrder,
         threadLastVisitedAtById: state.threadLastVisitedAtById,
         defaultAdvertisedEndpointKey: state.defaultAdvertisedEndpointKey,
@@ -389,12 +383,19 @@ export function reorderProjects(
   currentProjectOrder: readonly string[],
   draggedProjectIds: readonly string[],
   targetProjectIds: readonly string[],
+  pinnedProjectIds: readonly string[] = [],
 ): UiState {
   if (draggedProjectIds.length === 0) {
     return state;
   }
   const draggedSet = new Set(draggedProjectIds);
   const targetSet = new Set(targetProjectIds);
+  const pinnedSet = new Set(pinnedProjectIds);
+  if (
+    draggedProjectIds.some((id) => pinnedSet.has(id)) !==
+    targetProjectIds.some((id) => pinnedSet.has(id))
+  )
+    return state;
   if (draggedProjectIds.every((id) => targetSet.has(id))) {
     return state;
   }
@@ -407,20 +408,20 @@ export function reorderProjects(
   const projectOrder = [...currentProjectOrder];
 
   const removed: string[] = [];
-  let draggedBeforeTarget = 0;
+  const movingDown =
+    currentProjectOrder.findIndex((id) => draggedSet.has(id)) < originalTargetIndex;
   for (let i = projectOrder.length - 1; i >= 0; i--) {
     if (draggedSet.has(projectOrder[i]!)) {
       removed.unshift(projectOrder.splice(i, 1)[0]!);
-      if (i < originalTargetIndex) {
-        draggedBeforeTarget++;
-      }
     }
   }
   if (removed.length === 0) {
     return state;
   }
 
-  const insertIndex = originalTargetIndex - Math.max(0, draggedBeforeTarget - 1);
+  const insertIndex = movingDown
+    ? projectOrder.findLastIndex((id) => targetSet.has(id)) + 1
+    : projectOrder.findIndex((id) => targetSet.has(id));
   projectOrder.splice(insertIndex, 0, ...removed);
   return {
     ...state,
@@ -440,6 +441,7 @@ interface UiStateStore extends UiState {
     currentProjectOrder: readonly string[],
     draggedProjectIds: readonly string[],
     targetProjectIds: readonly string[],
+    pinnedProjectIds: readonly string[],
   ) => void;
 }
 
@@ -458,9 +460,15 @@ export const useUiStateStore = create<UiStateStore>((set) => ({
   setPullRequestMergeMethod: (method) => set((state) => setPullRequestMergeMethod(state, method)),
   setProjectExpanded: (projectIds, expanded) =>
     set((state) => setProjectExpanded(state, projectIds, expanded)),
-  reorderProjects: (currentProjectOrder, draggedProjectIds, targetProjectIds) =>
+  reorderProjects: (currentProjectOrder, draggedProjectIds, targetProjectIds, pinnedProjectIds) =>
     set((state) =>
-      reorderProjects(state, currentProjectOrder, draggedProjectIds, targetProjectIds),
+      reorderProjects(
+        state,
+        currentProjectOrder,
+        draggedProjectIds,
+        targetProjectIds,
+        pinnedProjectIds,
+      ),
     ),
 }));
 

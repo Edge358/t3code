@@ -35,6 +35,7 @@ import { vcsEnvironment } from "../state/vcs";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { refreshArchivedThreadsForEnvironment } from "../lib/archivedThreadsState";
 import { releaseComposerDraftUploads } from "../lib/composerDraftUploads";
+import { announce } from "../lib/announce";
 import { readLocalApi } from "../localApi";
 import {
   readEnvironmentServerConfigLoaded,
@@ -476,10 +477,14 @@ export function useThreadActions() {
         });
         if (family._tag === "Success") threads = [...family.value.threads];
       }
+      let navigatedDuringDelete = false;
+      const stopWatchingHistory = router.history.subscribe(({ action }) => {
+        if (action.type !== "REPLACE") navigatedDuringDelete = true;
+      });
       const result = await deleteThreadMutation({
         environmentId: target.environmentId,
         input: { threadId: target.threadId },
-      });
+      }).finally(stopWatchingHistory);
       if (result._tag === "Success") {
         for (const ref of [
           target,
@@ -497,7 +502,7 @@ export function useThreadActions() {
         refreshArchivedThreadsForEnvironment(target.environmentId);
         clearTerminalUiState(target);
         clearDeletedThreadPanelState(target);
-        await returnHomeAfterDeletion(target);
+        if (!navigatedDuringDelete) await returnHomeAfterDeletion(target);
       }
       return result;
     }
@@ -519,10 +524,16 @@ export function useThreadActions() {
             }),
           )
         : undefined;
-    const survivingThreads =
-      deletedIds && deletedIds.size > 0
-        ? threads.filter((entry) => entry.id === threadRef.threadId || !deletedIds.has(entry.id))
-        : threads;
+    // Deleting a thread also deletes its side chats, which share its worktree.
+    const removedIds = new Set<ThreadId>(deletedIds);
+    for (const entry of threads) {
+      if (entry.lineage.sideChat === true && entry.lineage.parentThreadId === threadRef.threadId) {
+        removedIds.add(entry.id);
+      }
+    }
+    const survivingThreads = threads.filter(
+      (entry) => entry.id === threadRef.threadId || !removedIds.has(entry.id),
+    );
     const environmentConfig = appAtomRegistry
       .get(environmentServerConfigsAtom)
       .get(threadRef.environmentId);
@@ -540,7 +551,7 @@ export function useThreadActions() {
       if (
         occupants._tag !== "Success" ||
         occupants.value.threadIds.some(
-          (threadId) => threadId !== threadRef.threadId && deletedIds?.has(threadId) !== true,
+          (threadId) => threadId !== threadRef.threadId && !removedIds.has(threadId),
         )
       ) {
         orphanedWorktreePath = null;
@@ -594,10 +605,14 @@ export function useThreadActions() {
       });
     }
 
+    let navigatedDuringDelete = false;
+    const stopWatchingHistory = router.history.subscribe(({ action }) => {
+      if (action.type !== "REPLACE") navigatedDuringDelete = true;
+    });
     const deleteResult = await deleteThreadMutation({
       environmentId: threadRef.environmentId,
       input: { threadId: threadRef.threadId, awaitCompletion: shouldDeleteWorktree },
-    });
+    }).finally(stopWatchingHistory);
     if (deleteResult._tag === "Failure") {
       return deleteResult;
     }
@@ -621,7 +636,7 @@ export function useThreadActions() {
     clearTerminalUiState(threadRef);
     clearDeletedThreadPanelState(threadRef);
 
-    await returnHomeAfterDeletion(threadRef);
+    if (!navigatedDuringDelete) await returnHomeAfterDeletion(threadRef);
 
     if (!shouldDeleteWorktree || !orphanedWorktreePath || !threadProject) {
       return deleteResult;
@@ -683,7 +698,7 @@ export function useThreadActions() {
     return deleteResult;
   };
 
-  const unsettleThread = async (target: ScopedThreadRef) => {
+  const unsettleThread = async (target: ScopedThreadRef, restoreUnsettledAt?: string | null) => {
     if (!readEnvironmentServerConfigLoaded(target.environmentId)) {
       return AsyncResult.failure(
         Cause.fail(
@@ -698,7 +713,11 @@ export function useThreadActions() {
     // reason "user" pins active until real activity, suppressing auto-settle.
     return unsettleThreadMutation({
       environmentId: target.environmentId,
-      input: { threadId: target.threadId, reason: "user" },
+      input: {
+        threadId: target.threadId,
+        reason: "user",
+        ...(restoreUnsettledAt === undefined ? {} : { restoreUnsettledAt }),
+      },
     });
   };
 
@@ -719,7 +738,7 @@ export function useThreadActions() {
     });
   };
 
-  const pinThread = async (target: ScopedThreadRef, opts: { orderKey?: string } = {}) => {
+  const sendPin = async (target: ScopedThreadRef, opts: { orderKey?: string } = {}) => {
     if (!readEnvironmentServerConfigLoaded(target.environmentId)) {
       return AsyncResult.failure(
         Cause.fail(
@@ -742,6 +761,12 @@ export function useThreadActions() {
         ...(orderKey !== undefined ? { orderKey } : {}),
       },
     });
+  };
+
+  const pinThread = async (target: ScopedThreadRef, opts: { orderKey?: string } = {}) => {
+    const result = await sendPin(target, opts);
+    if (result._tag === "Success") announce("Pinned 1 thread");
+    return result;
   };
 
   const unpinThread = async (target: ScopedThreadRef) => {
@@ -935,14 +960,13 @@ export function useThreadActions() {
       async (step) => {
         switch (step.action) {
           case "unsettle":
-            return unsettleThread(target);
+            return unsettleThread(target, step.restoreUnsettledAt);
           case "unsnooze":
             return unsnoozeThread(target);
           case "pin":
-            return pinThread(
-              target,
-              step.orderKey === undefined ? {} : { orderKey: step.orderKey },
-            );
+            return sendPin(target, step.orderKey === undefined ? {} : { orderKey: step.orderKey });
+          case "reorderActive":
+            return reorderActiveThread(target, step.orderKey);
           case "snooze":
             return snoozeThreadMutation({
               environmentId: target.environmentId,

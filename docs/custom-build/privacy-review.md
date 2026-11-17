@@ -1,9 +1,9 @@
 # Custom build: security and privacy review ledger
 
 Source/status reconciliation: 2026-11-01; the v0.1.8 additions were reviewed on
-2026-11-10. Historical runtime evidence is dated below.
+2026-11-10 and the v0.1.10 additions on 2026-11-17. Historical runtime evidence is dated below.
 Original base: T3 Code `v0.1.6`, commit
-`2359643cffa6ba9ee84d6f2694b935de54a8013e`. The build is now on T3 Code `v0.1.8`. Current build and validation: [custom changes](../../CUSTOM_CHANGES.md).
+`2359643cffa6ba9ee84d6f2694b935de54a8013e`. The build is now on T3 Code `v0.1.10`. Current build and validation: [custom changes](../../CUSTOM_CHANGES.md).
 See [the complete change summary](../../CUSTOM_CHANGES.md) for appearance,
 navigation, defaults, speech, validation, and possible upstream proposals.
 
@@ -67,6 +67,34 @@ traffic capture, supports this list.
 - **Copy → Thread** copies an `app.t3.codes` link. Inside T3 Code it opens or pastes
   the thread; opened elsewhere it reaches T3's hosted app, which cannot connect to
   this machine while cloud services are off.
+
+### Upstream v0.1.10 additions
+
+These arrived with the v0.1.10 update, which also includes v0.1.9. The seven fixed
+policy flags and the Off defaults for provider update checks, continuing threads
+after a restart, and auto-settle are unchanged. Source review, not a traffic capture,
+supports this list.
+
+- Settings can install a T3-managed copy of Codex from its GitHub release when the
+  user chooses Install. Its hourly lookup of newer Codex versions (npm registry and
+  GitHub) and the latest-version lookup for a native Codex install run only while
+  provider update checks are on, which stay Off by default here.
+- **Keep awake while agents work** defaults On. It holds an operating-system sleep
+  inhibitor and makes no network request.
+- Custom themes are local. Theme CSS that would load a file is refused (`@import`,
+  `image-set()`, and `url()` other than `data:` or `#id`), and a theme background
+  is read from the T3 server the app is connected to, which is this machine while
+  remote environments stay off.
+- Interface translations are bundled with the app; choosing a language downloads
+  nothing.
+- A watched GitHub pull request opens an event stream to `api.github.com` with the
+  user's GitHub sign-in. It starts from the user's own pull request work, like other
+  source-control requests.
+- Usage limits can read a CLIProxyAPI hub only after the user enters its address and
+  key.
+- New image paths in this release (composer thumbnails, file-link icons, document
+  previews) show local or app-served files, so the external media preference has no
+  new remote path to cover.
 
 ## Fixed policy versus settings
 

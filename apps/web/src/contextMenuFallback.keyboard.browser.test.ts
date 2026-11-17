@@ -69,19 +69,22 @@ it("uses the independent menu size for labels and submenus", () => {
   }
 });
 
-it("starts a keyboard-opened menu on its first action and wraps through enabled actions", () => {
-  using _fixture = setup();
-  void showContextMenuFallback(items);
-  expect(label()).toBe("Rename");
-  press("ArrowUp");
-  expect(label()).toBe("Copy");
-  press("ArrowDown");
-  expect(label()).toBe("Rename");
-  press("End");
-  expect(label()).toBe("Copy");
-  press("Home");
-  expect(label()).toBe("Rename");
-});
+it.each([undefined, "keyboard"] as const)(
+  "starts a keyboard-opened menu (%s) on its first action and wraps through enabled actions",
+  (source) => {
+    using _fixture = setup();
+    void showContextMenuFallback(items, undefined, source);
+    expect(label()).toBe("Rename");
+    press("ArrowUp");
+    expect(label()).toBe("Copy");
+    press("ArrowDown");
+    expect(label()).toBe("Rename");
+    press("End");
+    expect(label()).toBe("Copy");
+    press("Home");
+    expect(label()).toBe("Rename");
+  },
+);
 
 it("opens and cancels one submenu level at a time, then returns to the thread", async () => {
   using fixture = setup();
@@ -112,6 +115,14 @@ it("activates the focused action with Space or Enter", async () => {
   await expect(second).resolves.toBe("rename");
 });
 
+it("keeps a mouse-opened menu on the menu even when its opener has keyboard focus", () => {
+  using _fixture = setup();
+  void showContextMenuFallback(items, { x: 20, y: 20 }, "mouse");
+  expect(document.activeElement?.getAttribute("role")).toBe("menu");
+  press("ArrowDown");
+  expect(label()).toBe("Rename");
+});
+
 it("closes on Tab and returns focus to the opener so Tab continues from there", async () => {
   using fixture = setup();
   const result = showContextMenuFallback(items);
@@ -129,4 +140,16 @@ it("closes without taking focus back when focus moves elsewhere", async () => {
   destination.focus();
   await expect(result).resolves.toBeNull();
   expect(document.activeElement).toBe(destination);
+});
+
+it("takes thumb Back and Forward presses so the app router stays put", () => {
+  using _fixture = setup();
+  void showContextMenuFallback(items);
+  for (const button of [3, 4]) {
+    const event = new MouseEvent("mouseup", { button, bubbles: true, cancelable: true });
+    document.activeElement!.dispatchEvent(event);
+    // Chromium runs history back/forward on a thumb-button mouseup nobody cancelled.
+    expect(event.defaultPrevented).toBe(true);
+  }
+  expect(isContextMenuOpen()).toBe(true);
 });
