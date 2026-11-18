@@ -213,8 +213,9 @@ That would be going back.
 | Windows blocks the T3 installer                      | This installer is unsigned, so Windows warns about it. Choose **More info**, then **Run anyway**. Do not turn off Windows security.                                                                                                     |
 | The text is too small                                | Open **Settings → Appearance** and adjust Interface and Monospace/Code sizes. Those are personal preferences saved on this computer.                                                                                                    |
 
-For help, share the exact error message and which step you reached. Leave out
-passwords, verification codes, and sign-in links.
+For help, open an [issue](https://github.com/Edge358/t3code/issues) with the exact
+error message and which step you reached. Leave out passwords, verification codes,
+and sign-in links.
 
 For more detail, see [T3 installation and provider setup](docs/user/install.md),
 [Codex setup](docs/user/providers-codex.md), and [Claude setup](docs/user/providers-claude.md).
