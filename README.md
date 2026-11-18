@@ -1,4 +1,4 @@
-# T3 Code: Edge358's Windows build
+# T3 Code: Edge's custom Windows build
 
 My personal build of [T3 Code](https://github.com/pingdotgg/t3code), the open-source
 app for running coding agents like Codex and Claude. It adds my own changes for
@@ -11,7 +11,8 @@ Name matches icon color**. That switch is Off by default.
 
 This is not an official release. For the regular app, use
 [Theo's project](https://github.com/pingdotgg/t3code). This fork's `main` branch
-is an unchanged copy of it.
+is a copy of Theo's code as of my last update, so it may be behind his. My build is
+the `edge358-custom-build` branch, shown here.
 
 Thank you to Theo and the T3 Code team for building it in the open, which let me
 shape it to my own workflow.
