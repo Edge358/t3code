@@ -41,6 +41,8 @@ Details and reasons: [Custom changes](CUSTOM_CHANGES.md) ·
 - Download the Windows installer from
   [Releases](https://github.com/Edge358/t3code/releases).
   [Start Here](START_HERE.md) walks you through setup.
+- Problems with this build: open an [issue](https://github.com/Edge358/t3code/issues) here.
+  Problems with T3 Code itself go to [Theo's project](https://github.com/pingdotgg/t3code/issues).
 
 ## Suggestions for T3 Code
 
