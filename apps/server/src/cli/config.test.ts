@@ -5,6 +5,12 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 
 import { assert, expect, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
+
+// Preserve upstream resolution coverage; privateBuildPolicy.test.ts exercises the real hard restriction.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({
+  privateBuildPolicy: { reporting: true },
+}));
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";

@@ -37,6 +37,7 @@ import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { MessagesTimeline } from "./MessagesTimeline";
+import { setAutomaticRemoteMedia } from "./RemoteMediaConsent";
 import { createWorkspaceFocusController, workspaceAreaProps } from "../../lib/workspaceFocus";
 import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
@@ -230,6 +231,9 @@ const AUTOMATION_PROMPT = "Triage the inbox\n\nLabel every new issue and close d
 
 describe("MessagesTimeline work rows", () => {
   it("keeps a tall HTML preview in place when its last accordion opens at the bottom", async () => {
+    // This build asks before showing an agent-made page; RemoteMediaConsent.browser.test.tsx covers the prompt.
+    setAutomaticRemoteMedia(true);
+    using _media = { [Symbol.dispose]: () => setAutomaticRemoteMedia(false) };
     const props = baseProps();
     const html = injectHtmlRenderBootstrap(`<div style="height:1400px">Earlier preview content</div>
       <details><summary>More rows</summary><div style="height:900px">More rows</div></details>

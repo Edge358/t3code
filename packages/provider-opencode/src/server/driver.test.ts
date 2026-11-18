@@ -6,6 +6,12 @@ import * as NodePath from "node:path";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
+
+// Retain upstream timed-recovery coverage; managedProvider.test.ts checks the shipping policy.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({
+  privateBuildPolicy: { automaticProviderChecks: true },
+}));
 import {
   DEFAULT_SERVER_SETTINGS,
   ProviderInstanceId,

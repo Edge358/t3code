@@ -116,6 +116,8 @@ function setup(input: {
   state.folder = input.folder;
   state.pullRequests = input.pullRequests ?? [];
   useRightPanelStore.setState({ threadPanelVisibilityByThreadKey: {} });
+  // This build starts the details card closed; these tests cover its content once opened.
+  useRightPanelStore.getState().setThreadPanelOpen(threadRef, "inline", true);
   const anchor = document.createElement("div");
   document.body.append(anchor);
   return {

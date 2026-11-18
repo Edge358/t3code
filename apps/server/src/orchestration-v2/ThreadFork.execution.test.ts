@@ -1126,6 +1126,8 @@ it.effect("a side chat opens once a later run has worked in the project checkout
 it.effect("closing a side chat deletes it only while unused; a deleted parent takes no more", () =>
   Effect.gen(function* () {
     const orchestrator = yield* Orchestrator.OrchestratorV2;
+    // This build's Delete finishes in the effect worker, after provider history cleanup.
+    const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
     const parentId = ThreadId.make("side-chat-close-parent");
     const unused = ThreadId.make("side-chat-close-unused");
     const used = ThreadId.make("side-chat-close-used");
@@ -1151,21 +1153,30 @@ it.effect("closing a side chat deletes it only while unused; a deleted parent ta
 
     yield* close(unused);
     yield* close(used);
+    yield* worker.drain();
     assert.isNotNull((yield* orchestrator.getThreadProjection(unused)).thread.deletedAt);
     assert.isNull((yield* orchestrator.getThreadProjection(used)).thread.deletedAt);
+    const fromDeleted = yield* forkSideChat(
+      "side-chat-close-from-deleted",
+      unused,
+      ThreadId.make("side-chat-close-from-deleted"),
+    ).pipe(Effect.flip);
+    assert.include(String(fromDeleted.cause), "was deleted");
 
     yield* orchestrator.dispatch({
       type: "thread.delete",
       commandId: CommandId.make("side-chat-close-delete-parent"),
       threadId: parentId,
     });
+    yield* worker.drain();
     assert.isNotNull((yield* orchestrator.getThreadProjection(used)).thread.deletedAt);
     const orphan = yield* forkSideChat(
       "side-chat-close-orphan",
       parentId,
       ThreadId.make("side-chat-close-orphan"),
     ).pipe(Effect.flip);
-    assert.include(String(orphan.cause), "was deleted");
+    // The replay adapter cannot remove the parent's own history, so its Delete stays unfinished.
+    assert.equal(orphan._tag, "ThreadHistoryDeletionError");
   }).pipe(Effect.provide(forkCases[0]!.layer)),
 );
 
@@ -1315,6 +1326,7 @@ it.effect("a side chat opened during the parent's first turn starts from a diges
       commandId: CommandId.make("side-chat-busy-delete-parent"),
       threadId: parentId,
     });
+    yield* (yield* EffectWorker.OrchestrationEffectWorkerV2).drain();
     assert.isNotNull((yield* orchestrator.getThreadProjection(sideChatId)).thread.deletedAt);
   }).pipe(Effect.provide(forkCases[0]!.layer)),
 );

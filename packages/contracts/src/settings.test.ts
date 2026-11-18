@@ -73,6 +73,15 @@ it("drops theme defaults from a client's settings patch", () => {
   ).toEqual({ newWorktreesStartFromOrigin: false });
 });
 
+it("ships auto-settle and restart continuation off", () => {
+  const settings = decodeServerSettings({});
+  expect([
+    settings.sidebarAutoSettleAfterDays,
+    settings.sidebarAutoSettleOnMerge,
+    settings.continueThreadsAfterServerUpdate,
+  ]).toEqual([null, false, false]);
+});
+
 describe("storage cleanup settings", () => {
   it("defaults browser and log cleanup to 30 days while leaving worktree cleanup disabled", () => {
     expect(decodeServerSettings({}).worktreeCleanup).toBeNull();

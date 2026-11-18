@@ -680,7 +680,8 @@ it.effect.each([
         : [],
   } as unknown as OrchestrationV2ThreadProjection;
   const layer = ProviderRuntimeRecovery.layer.pipe(
-    Layer.provide(ServerSettings.layerTest()),
+    // This build ships "Continue threads after restarts" Off; these rows cover it switched on.
+    Layer.provide(ServerSettings.layerTest({ continueThreadsAfterServerUpdate: true })),
     Layer.provide(
       Layer.mergeAll(
         Layer.mock(ProjectionStore.ProjectionStoreV2)({

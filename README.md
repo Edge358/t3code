@@ -6,6 +6,9 @@ privacy, cleanup, readability and the way I work.
 
 ![The sidebar with colored project names and the welcome page](docs/custom-build/images/sidebar-and-welcome.png)
 
+Colored project names in the screenshot use **Settings > Labs > Boring sidebar >
+Name matches icon color**. That switch is Off by default.
+
 This is not an official release. For the regular app, use
 [Theo's project](https://github.com/pingdotgg/t3code). This fork's `main` branch
 is an unchanged copy of it.
@@ -20,8 +23,10 @@ shape it to my own workflow.
 - **Full delete:** deleting a conversation also deletes it from Codex and Claude Code,
   so it disappears from their apps too.
 - **After deleting** the thread you're viewing, you land on a neutral welcome page.
-- **Sidebar:** drag projects to reorder them, project colors, a folder chooser for new threads.
+- **Sidebar:** drag projects to reorder them, optional project-name colors, and a folder chooser for new threads.
 - **Readability:** larger text sizes, adjustable menu sizes, quieter headings.
+  **Settings > Appearance > Typography > Advanced > Separate fonts** reveals
+  separate controls for sidebar, conversation and menu text.
 - **Optional spoken replies** through a speech service you already run.
 
 Details and reasons: [Custom changes](CUSTOM_CHANGES.md) ·
@@ -29,7 +34,8 @@ Details and reasons: [Custom changes](CUSTOM_CHANGES.md) ·
 
 ## Status
 
-- Source based on T3 Code v0.1.10. It catches up with Theo's releases from time to time.
+- Source based on T3 Code v0.1.10 with selected upstream security and reliability
+  fixes reviewed on November 17, 2026. It catches up with Theo's releases from time to time.
 - Windows only, tested on one machine.
 - Download the Windows installer from
   [Releases](https://github.com/Edge358/t3code/releases).

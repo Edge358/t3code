@@ -93,9 +93,8 @@ export function ReplySpeechSettings() {
                 setStatus(
                   "Speech was not confirmed. Check that the service is running and the address is correct.",
                 );
-              } finally {
-                setTesting(false);
               }
+              setTesting(false);
             }}
           >
             {testing ? "Testing…" : "Test speech"}

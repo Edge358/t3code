@@ -176,6 +176,8 @@ export const layer = Layer.effect(
               (thread) => thread.id === target.providerThreadId,
             );
             const result = yield* Effect.gen(function* () {
+              // The provider is stopped, so no ID can still arrive; a history never recorded cannot be located.
+              if (native !== undefined && target.nativeId === null) return "absent" as const;
               if (
                 native === undefined ||
                 target.nativeId === null ||

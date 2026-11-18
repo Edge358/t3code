@@ -40,6 +40,7 @@ it.effect.each([
   "shared-partial",
   "absent",
   "unsupported",
+  "never-started",
   "restart",
   "worker-failed",
   "side-chat",
@@ -285,7 +286,7 @@ it.effect.each([
         threadId: ThreadId,
         id: string,
         driverName: string,
-        nativeId = id,
+        nativeId: string | null = id,
       ) {
         const driver = ProviderDriverKind.make(driverName);
         const payload: OrchestrationV2ProviderThread = {
@@ -300,7 +301,7 @@ it.effect.each([
               : null,
           appThreadId: threadId,
           ownerNodeId: null,
-          nativeThreadRef: { driver, nativeId, strength: "strong" },
+          nativeThreadRef: nativeId === null ? null : { driver, nativeId, strength: "strong" },
           nativeConversationHeadRef: null,
           status: "idle",
           firstRunOrdinal: 1,
@@ -336,6 +337,9 @@ it.effect.each([
         scenario.startsWith("shared") ? "codex-first" : "unrelated",
       );
       if (scenario === "unsupported") yield* addNative(target, "other-history", "other");
+      // A provider that failed before reporting a history ID left nothing recorded to remove.
+      if (scenario === "never-started")
+        yield* addNative(target, "codex-never-started", "codex", null);
       if (hasSideChat) yield* addNative(ThreadId.make("side-chat"), "child-history", "claudeAgent");
       for (const type of ["thread.settle", "thread.archive", "thread.unarchive"] as const) {
         yield* orchestrator.dispatch({ type, commandId: CommandId.make(type), threadId: target });
@@ -606,6 +610,10 @@ it.effect.each([
         assert.isNotNull(first.deletedAt);
       }
       if (scenario === "unsupported") assert.notInclude(calls, "other-history");
+      if (scenario === "never-started") {
+        assert.isNotNull(first.deletedAt);
+        assert.sameMembers(calls, ["codex-first", "claude", "codex-return"]);
+      }
       if (scenario === "partial" || scenario === "shared-partial") {
         assert.equal(
           first.historyDeletion!.message.includes("Shared histories are kept."),

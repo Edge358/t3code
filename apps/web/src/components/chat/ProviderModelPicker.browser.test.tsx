@@ -15,6 +15,11 @@ import { __setClientSettingsForTests } from "../../hooks/useSettings";
 import { deriveProviderInstanceEntries } from "../../providerInstances";
 import { ProviderModelPicker } from "./ProviderModelPicker";
 
+// Retain upstream registry-image coverage; ProviderInstanceIcon.test.ts checks the shipping policy.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({
+  privateBuildPolicy: { remoteIcons: true },
+}));
+
 it("keeps each registry image when adding a model from another ACP agent", async () => {
   const icons = [
     "https://cdn.agentclientprotocol.com/registry/icons/picker-explicit.svg",

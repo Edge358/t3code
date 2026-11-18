@@ -1,7 +1,8 @@
 # Custom build: security and privacy review ledger
 
 Source/status reconciliation: 2026-11-01; the v0.1.8 additions were reviewed on
-2026-11-10 and the v0.1.10 additions on 2026-11-17. Historical runtime evidence is dated below.
+2026-11-10 and the v0.1.10 additions and selected security backports on 2026-11-17.
+Historical runtime evidence is dated below.
 Original base: T3 Code `v0.1.6`, commit
 `2359643cffa6ba9ee84d6f2694b935de54a8013e`. The build is now on T3 Code `v0.1.10`. Current build and validation: [custom changes](../../CUSTOM_CHANGES.md).
 See [the complete change summary](../../CUSTOM_CHANGES.md) for appearance,
@@ -14,6 +15,18 @@ vulnerability. Findings below distinguish source-supported paths, observed
 connections, and matters not established by testing.
 
 ## Review method and evidence scope
+
+The private.44 build retains stable v0.1.10 and incorporates selected upstream
+fixes for credential and permission boundaries, signed asset URLs, resolved HTML
+preview paths, pairing and session revocation, SSH destination handling and
+resource limits. This is a selected backport set, not the complete next nightly.
+The fixed reporting opt-out remains unconditional.
+
+The packaged private.44 preview was started on a disposable profile without
+authenticated agents and left idle. A check 99 seconds after launch found the
+expected version, no non-loopback connections and no watched DNS entries. It is
+a bounded startup observation, not evidence about all provider sessions or all
+future network activity.
 
 The review inspected the pinned source, traced relevant configuration and request
 paths, added focused regression tests, built the modified Windows app, inspected

@@ -103,7 +103,7 @@ describe("serverSettings helpers", () => {
 
   it("changes a cleanup rule without replacing the machine's other rules", () => {
     const enabled = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
-      storageCleanup: { worktreeAfterDays: 8, worktreeOnMerge: true, logsAfterDays: 30 },
+      storageCleanup: { worktreeAfterDays: 8, worktreeOnMerge: true, logsAfterDays: 90 },
     });
     expect(
       applyServerSettingsPatch(enabled, {
@@ -116,8 +116,9 @@ describe("serverSettings helpers", () => {
       worktreeOnDelete: false,
       worktreeUnchanged: false,
       worktreeKeepWhen: "uncommitted-changes",
-      browserArtifactsAfterDays: null,
-      logsAfterDays: 30,
+      // This build's default; the patched 90 differs from it to prove the rule survived.
+      browserArtifactsAfterDays: 30,
+      logsAfterDays: 90,
     });
   });
   it("replaces a source control host's patched field so a cleared account pin does not survive", () => {

@@ -2,6 +2,12 @@ import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
 import desktopPackageJson from "../../package.json" with { type: "json" };
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
+
+// Retain upstream export coverage; privateBuildPolicy.test.ts exercises the real hard restriction.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({
+  privateBuildPolicy: { reporting: true },
+}));
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";

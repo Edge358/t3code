@@ -28,8 +28,8 @@ that follow.
   reads when reporting is disabled.
 - Claude usage-display fixes and Windows profile/path compatibility improvements.
 
-These are candidates for discussion, not assumptions about upstream priorities;
-[section 7](#7-possible-independent-upstream-proposals) identifies their scope.
+Some have been submitted, and the navigation-during-delete fix has been merged;
+[section 7](#7-possible-independent-upstream-proposals) identifies their status and scope.
 
 ### Personal workflow and appearance
 
@@ -295,7 +295,7 @@ privacy restrictions are a separate mechanism, documented in the privacy review.
 | Setting                                                               | Upstream default       | Custom default |
 | --------------------------------------------------------------------- | ---------------------- | -------------- |
 | Project-organized sidebar (`boringSidebarEnabled`)                    | Off                    | On             |
-| Auto-settle inactive threads                                          | After 3 days           | Off (`null`)   |
+| Auto-settle inactive threads                                          | After 7 days           | Off (`null`)   |
 | Auto-settle merged threads                                            | On                     | Off            |
 | Continue threads after server restarts                                | On                     | Off            |
 | Delete old browser artifacts                                          | Off                    | After 30 days  |
@@ -430,6 +430,9 @@ information unchecked. It can contact providers and remains separate from
 periodic checks, optional telemetry, and model-manifest update settings. This
 change does not promise every provider request is local or that provider quotas
 are governed by the app. Model use still requires provider connections.
+With periodic checks off, a provider whose first discovery fails, for example
+because its own server was still starting, stays unavailable until a manual
+refresh in Settings > Providers or an app restart.
 
 The Claude subscription-usage fallback preserves explicitly named weekly model
 limits, including Fable, from the provider's `limits` response. It uses the returned
@@ -473,6 +476,13 @@ Validate future changes with checks appropriate to the affected behavior:
 - `pnpm exec vp fmt --check` and `pnpm exec vp lint` on the changed files.
 - For runtime changes, a Windows x64 package and a launch/health check of the
   artifact being accepted. Documentation-only corrections do not require rebuilding.
+- After an upstream update, or a change to a fixed policy or a default, the complete
+  test suites on unchanged upstream and on this variant, on the same host, compared
+  by failing test. Focused suites miss upstream tests in files this variant never
+  edited: in November 2026 that comparison found 80 such tests failing only here.
+  Nearly all held expectations this variant's defaults and policy had overtaken;
+  the rest exposed two real defects. A test that fails only here is one or the
+  other, never noise.
 
 `pnpm exec vp run check:changed` runs upstream source checks, not packaging or
 runtime acceptance. On Windows, its child checks use the installed Vite+ JavaScript
@@ -522,6 +532,13 @@ If the user also requests removal of the thread's separate working folder, the
 client waits for confirmed history-cleanup completion before removing that folder.
 A cleanup failure keeps the folder available for retry. Ordinary thread deletion
 continues to report progress asynchronously.
+
+A conversation whose agent never reported a history ID, for example because the
+agent failed to start, has no recorded provider history to remove and is deleted
+without that step. Earlier builds failed that Delete on every retry. The limit:
+a history the provider wrote without the app recording its ID cannot be found.
+One known case, established by reading the code and not reproduced, is a forked
+conversation stopped or deleted while its first turn is still starting.
 
 Deletion failures now explain shared-provider activity, newly discovered helpers,
 unfinished conversation work, or the cleanup step that failed. The banner and
@@ -581,8 +598,21 @@ paths and refuses links inside its history and session-environment folders.
 
 ## 7. Possible independent upstream proposals
 
-These are candidate topics, not claims that maintainers want the changes or that
-every change is an upstream bug. Check the current contribution requirements
+The following submissions have already been made:
+
+- [PR #33953](https://github.com/pingdotgg/t3code/pull/33953), preserving later
+  navigation during deletion, was merged on November 12, 2026 and is included in
+  v0.1.10. The broader replace-navigation cases remain a separate follow-up.
+- Sidebar project dragging was offered in a
+  [comment on #27062](https://github.com/pingdotgg/t3code/issues/27062#issuecomment-6772848611).
+- Full local deletion was described in a
+  [comment on discussion #24771](https://github.com/pingdotgg/t3code/discussions/24771#discussioncomment-19523698).
+- Returning Home after deletion was proposed in
+  [discussion #33960](https://github.com/pingdotgg/t3code/discussions/33960).
+
+The comments and discussion are proposals, not maintainer approval. Other topics
+below remain candidates, not claims that every change is an upstream bug.
+Check the current contribution requirements
 before any submission; the pinned [CONTRIBUTING.md](CONTRIBUTING.md) describes
 limited review capacity, focused scope, and prior discussion for product changes.
 

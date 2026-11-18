@@ -1,4 +1,10 @@
 import { assert, describe, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
+
+// Exercise upstream publishing behavior; PrivateBuildCloud.test.ts checks the shipping policy.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({
+  privateBuildPolicy: { cloudServices: true },
+}));
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import {
   EnvironmentId,

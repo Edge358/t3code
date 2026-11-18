@@ -2,7 +2,7 @@ import { SourceControlProviderKind } from "@t3tools/contracts";
 import { assert, describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 import {
-  DEFAULT_SERVER_SETTINGS,
+  DEFAULT_SERVER_SETTINGS as PRIVATE_DEFAULT_SERVER_SETTINGS,
   ProjectId,
   EventId,
   ProviderInstanceId,
@@ -48,6 +48,12 @@ import * as Orchestrator from "./Orchestrator.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ThreadSettlementService from "./ThreadSettlementService.ts";
 
+// This build ships both auto-settle switches Off. These tests cover settlement once a user turns them on.
+const DEFAULT_SERVER_SETTINGS = {
+  ...PRIVATE_DEFAULT_SERVER_SETTINGS,
+  sidebarAutoSettleOnMerge: true,
+  sidebarAutoSettleAfterDays: 7,
+};
 const NOW_MS = Date.parse("2026-06-10T12:00:00.000Z");
 const DAY_MS = 24 * 60 * 60 * 1_000;
 

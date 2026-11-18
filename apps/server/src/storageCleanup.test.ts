@@ -354,7 +354,8 @@ const cleanupFixture = (
     yield* command(repo, ["worktree", "add", "-b", "feature", worktree]);
     let settings: import("@t3tools/contracts").ServerSettings = {
       ...DEFAULT_SERVER_SETTINGS,
-      storageCleanup,
+      // This build's 30-day file defaults would add report entries; file tests opt in with enableFiles().
+      storageCleanup: { ...storageCleanup, browserArtifactsAfterDays: null, logsAfterDays: null },
     };
     let threads = [shell({ branch: "feature", worktreePath: worktree })];
     let deletedThreads: OrchestrationV2ThreadShell[] = [];

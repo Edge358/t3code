@@ -1,7 +1,13 @@
-import { afterEach, describe, expect, it, vi } from "@effect/vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
 import { withRelayClientTracing } from "@t3tools/shared/relayTracing";
 import * as Effect from "effect/Effect";
 import * as Tracer from "effect/Tracer";
+
+// Retain upstream relay-export coverage; privatePublicConfig.test.ts checks the shipping policy.
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({
+  privateBuildPolicy: { reporting: true },
+}));
 
 afterEach(() => {
   vi.unstubAllEnvs();

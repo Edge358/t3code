@@ -6,6 +6,10 @@ import {
   resolveOfficialAcpRegistryIconUrl,
 } from "./AcpRegistryIcon";
 
+// Retain upstream cache coverage and exercise the shipping policy below.
+const testPolicy = vi.hoisted(() => ({ remoteIcons: true }));
+vi.mock("@t3tools/shared/privateBuildPolicy", () => ({ privateBuildPolicy: testPolicy }));
+
 describe("ACP Registry icon cache", () => {
   const stored = new Map<string, Response>();
   const match = vi.fn(async (url: string) => stored.get(url)?.clone());
@@ -59,6 +63,21 @@ describe("ACP Registry icon cache", () => {
 
     await expect(loadCachedAcpRegistryIcon(url)).rejects.toThrow("too large");
     expect(put).not.toHaveBeenCalled();
+  });
+
+  it("refuses an official icon URL without fetching under the private policy", async () => {
+    testPolicy.remoteIcons = false;
+    try {
+      await expect(
+        loadCachedAcpRegistryIcon(
+          "https://cdn.agentclientprotocol.com/registry/icons/private-policy.svg",
+        ),
+      ).rejects.toThrow("not allowed");
+      expect(fetchIcon).not.toHaveBeenCalled();
+      expect(put).not.toHaveBeenCalled();
+    } finally {
+      testPolicy.remoteIcons = true;
+    }
   });
 
   it("accepts only credential-free HTTPS URLs on the official CDN", () => {

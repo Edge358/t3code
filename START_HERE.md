@@ -149,9 +149,9 @@ Use the installer for the version you want:
 2. Double-click the installer and follow any on-screen prompts.
 3. Open **T3 Code** using its desktop shortcut or by searching for it in Start.
    The shortcut may be named **T3 Code (Beta)**.
-4. The first screen is **Welcome to T3 Code**. It may offer to import projects from
-   your earlier Codex and Claude Code conversations. That is optional: click
-   **Select none** to skip it, then **Start**.
+4. The first screen is **Welcome to T3 Code**. Set up an agent there, or choose
+   **Start without an agent** to enter the app and finish setup in Settings.
+   If an import screen offers earlier conversations, importing them is optional.
 5. Open the **gear icon → Providers** in Settings.
 6. Check that Codex and Claude are enabled and recognized. For Codex, use the
    existing CLI/login option when offered, since you already signed in above.
@@ -183,8 +183,9 @@ to sign in again later if an account's authorization expires or changes.
 
 ## Updating from an older version
 
-This works whether you have an older version of this build or the regular T3 Code.
-You do not need to uninstall anything.
+Updating over an older version of this build is tested. Installing over the regular
+T3 Code should work the same way, but I have not tested it. You do not need to
+uninstall anything.
 
 1. Close T3 Code.
 2. Download the new installer from
